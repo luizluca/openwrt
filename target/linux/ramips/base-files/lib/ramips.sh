@@ -130,6 +130,9 @@ ramips_board_detect() {
 	*"DCS-930L B1")
 		name="dcs-930l-b1"
 		;;
+	*"DCS-933L B1")
+		name="dcs-933l-b1"
+		;;
 	*"Digineo AC1200 Pro")
 		name="ac1200pro"
 		;;

@@ -47,6 +47,7 @@ ramips_setup_interfaces()
 	broadway|\
 	dcs-930|\
 	dcs-930l-b1|\
+	dcs-933l-b1|\
 	ht-tm02|\
 	linkits7688 | \
 	linkits7688d | \
