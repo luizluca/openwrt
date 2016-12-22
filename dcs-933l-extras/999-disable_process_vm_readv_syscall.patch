@@ -1,0 +1,10 @@
+--- strace-4.14/util.c.old	2016-12-22 01:09:21.620900624 -0200
++++ strace-4.14/util.c	2016-12-22 01:09:28.660575484 -0200
+@@ -997,6 +997,7 @@
+ #  define __NR_process_vm_readv  351
+ # endif
+ #endif
++# undef __NR_process_vm_readv
+ 
+ #if defined(__NR_process_vm_readv)
+ static bool process_vm_readv_not_supported = 0;

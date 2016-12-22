@@ -1,0 +1,5 @@
+In order to mount inside factory firwmare, use this command (or equivalent)
+
+ mount -t cifs //192.168.0.3/a /media/ -o ip=192.168.0.3,unc=\\\\192.168.0.3\\a,user=,pass=
+
+

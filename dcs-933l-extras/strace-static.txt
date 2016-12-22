@@ -1,0 +1,6 @@
+Add this patch to strace 999-disable_process_vm_readv_syscall.patch
+And compile with:
+
+ make package/strace/compile TARGET_LDFLAGS="-static"
+
+Copy the compiled strace to somewhere accessible by the device
