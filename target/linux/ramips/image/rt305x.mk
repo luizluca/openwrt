@@ -204,14 +204,14 @@ define Device/dap-1350
 endef
 TARGET_DEVICES += dap-1350
 
-define Device/dcs-933l-b1
-  DTS := DCS-933L-B1
+define Device/dcs-933l
+  DTS := DCS-933L
   BLOCKSIZE := 4k
   IMAGE_SIZE := $(ralink_default_fw_size_8M)
-  DEVICE_TITLE := D-Link DCS-933L B1
+  DEVICE_TITLE := D-Link DCS-933L
   DEVICE_PACKAGES := kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-ledtrig-netdev kmod-video-core kmod-video-uvc kmod-sound-core kmod-usb-audio
 endef
-TARGET_DEVICES += dcs-933l-b1
+TARGET_DEVICES += dcs-933l
 
 define Device/dir-300-b1
   DTS := DIR-300-B1
