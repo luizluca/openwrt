@@ -1,0 +1,104 @@
+execve("/bin/ov780", ["ov780", "-r", "120", "-i", "100"], [/* 7 vars */]) = 0
+mmap(NULL, 20, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x2aaae000
+stat("/home/andy/ipcam3352/RT288x_SDK/source/romfs/etc/ld.so.cache", 0x7f982b10) = -1 ENOENT (No such file or directory)
+open("/lib/libc.so.0", O_RDONLY)        = 3
+mmap(NULL, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x2aaaf000
+read(3, "...<ommited>...", 4096) = 4096
+mmap(NULL, 913408, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x2aaef000
+mmap(0x2aaef000, 622372, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED, 3, 0) = 0x2aaef000
+mmap(0x2abc6000, 7944, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED, 3, 0x97000) = 0x2abc6000
+mmap(0x2abc8000, 20968, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x2abc8000
+close(3)                                = 0
+munmap(0x2aaaf000, 4096)                = 0
+mprotect(0x2abc6000, 4096, PROT_READ)   = 0
+mprotect(0x2aaed000, 4096, PROT_READ)   = 0
+ioctl(0, TCGETS, {B57600 opost isig icanon echo ...}) = 0
+ioctl(1, TCGETS, {B57600 opost isig icanon echo ...}) = 0
+brk(NULL)                               = 0x44d000
+brk(0x44e000)                           = 0x44e000
+rt_sigaction(SIGPIPE, {SIG_IGN, [PIPE], SA_RESTART|0x4000000}, {SIG_DFL, [], 0}, 16) = 0
+rt_sigaction(SIGINT, {0x406e84, [INT], SA_RESTART|0x4000000}, {SIG_DFL, [], 0}, 16) = 0
+rt_sigaction(SIGTERM, {0x406e84, [TERM], SA_RESTART|0x4000000}, {SIG_DFL, [], 0}, 16) = 0
+open("/dev/spiS0", O_RDONLY)            = 3
+ioctl(3, SPI_COMMAND_BUFFER_ALLOCATE, 0x1000)                = 0
+open("/dev/gpio", O_RDONLY)             = 4
+ioctl(4, [ req=SYSIF_WRITE/0x11, idx=SPI_LOCK_UNLOCK/0x53 ], 0x7f982d30) = 0
+ioctl(4, [ req=RALINK_GPIO_SET_DIR_IN/0xb, idx=0x0 ], [ p18 | p20 ]/0x140000) = 0
+ioctl(4, [ req=RALINK_GPIO_SET_DIR_OUT/0xc, idx=0x0 ], [ p17 ]/0x20000) = 0
+ioctl(4, [ req=RALINK_GPIO_WRITE_BIT/0x5, idx=p17/0x11 ], 0x7f982d44) = 0
+ioctl(3, SPI_COMMAND_SET_SPI_CONFIG, 0x136) = 0
+ioctl(4, [ req=RALINK_GPIO_WRITE_BIT/0x5, idx=p7/0x7 ], 0x7f982d44) = 0
+nanosleep({0, 120000000}, NULL)         = 0
+ioctl(4, [ req=RALINK_GPIO_WRITE_BIT/0x5, idx=p7/0x7 ], 0x7f982d44) = 0
+nanosleep({0, 120000000}, NULL)         = 0
+ioctl(4, [ req=RALINK_GPIO_WRITE_BIT/0x5, idx=p7/0x7 ], 0x7f982d44) = 0
+nanosleep({0, 100000000}, NULL)         = 0
+ioctl(4, [ req=RALINK_GPIO_READ_BIT/0x4, idx=p20/0x14 ], 0x7f982c48) = 0
+open("/sbin/ov780_fw.bin", O_RDONLY)    = 5
+ioctl(5, TCGETS, 0x7f982b98)            = -1 ENOTTY (Inappropriate ioctl for device)
+brk(0x44f000)                           = 0x44f000
+fstat(5, {st_mode=S_IFREG|0654, st_size=89088, ...}) = 0
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 8
+nanosleep({0, 10000000}, NULL)          = 0
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 4096
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 4096
+read(5, "...<ommited>...", 4096) = 3072
+read(5, "...<ommited>...", 1024)                       = 0
+ioctl(3, SPI_COMMAND_WRITE, 0x7f982c48) = 3072
+gettimeofday({1420088697, 683057}, NULL) = 0
+gettimeofday({1420088697, 683338}, NULL) = 0
+ioctl(4, [ req=RALINK_GPIO_READ_BIT/0x4, idx=p20/0x14 ], 0x7f982c48) = 0
+gettimeofday({1420088697, 683516}, NULL) = 0
+ioctl(4, [ req=RALINK_GPIO_READ_BIT/0x4, idx=p20/0x14 ], 0x7f982c48) = 0
+ioctl(4, [ req=RALINK_GPIO_READ_BIT/0x4, idx=p20/0x14 ], 0x7f982c48) = 0
+write(1, "<OV780: firmware ready (459us)!>\n", 33) = 33
+close(5)                                = 0
+ioctl(3, SPI_COMMAND_SET_SPI_CONFIG, 0x132) = 0
+nanosleep({0, 3000000}, NULL)           = 0
+ioctl(4, [ req=RALINK_GPIO_SET_DIR_OUT/0xc, idx=0x0 ], [ p20 ]/0x100000) = 0
+ioctl(4, [ req=RALINK_GPIO_WRITE_BIT/0x5, idx=p20/0x14 ], 0x7f982d44) = 0
+ioctl(4, [ req=SYSIF_WRITE/0x11, idx=SPI_LOCK_UNLOCK/0x53 ], 0x7f982d30) = 0
+close(3)                                = 0
+close(4)                                = 0
+exit(0)                                 = ?
++++ exited with 0 +++
