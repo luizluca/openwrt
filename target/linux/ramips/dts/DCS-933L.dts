@@ -51,7 +51,13 @@
 		compatible = "gpio-export";
 		#size-cells = <0>;
 
-/*		light_sensor {
+		chip_reset {
+			gpio-export,name = "chip_reset";
+			gpio-export,output = <1>;
+			gpios = <&gpio0 7 GPIO_ACTIVE_LOW>;
+		};
+
+		light_sensor {
 			gpio-export,name = "light_sensor";
 			gpio-export,output = <0>;
 			gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
@@ -62,11 +68,29 @@
 			gpio-export,output = <1>;
 			gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
 		};
-*/
+
 		ir_cutoff_filter {
 			gpio-export,name = "ir_cutoff_filter";
 			gpio-export,output = <1>;
 			gpios = <&gpio0 14 GPIO_ACTIVE_LOW>;
+		};
+
+		ov780_spi_out {
+			gpio-export,name = "ov780_spi_out";
+			gpio-export,output = <1>;
+			gpios = <&gpio0 17 GPIO_ACTIVE_LOW>;
+		};
+
+		ov780_spi_in {
+			gpio-export,name = "ov780_spi_in";
+			gpio-export,output = <0>;
+			gpios = <&gpio0 18 GPIO_ACTIVE_LOW>;
+		};
+
+		ov780_boot_in {
+			gpio-export,name = "ov780_boot_in";
+			gpio-export,output = <0>;
+			gpios = <&gpio0 20 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
@@ -120,7 +144,7 @@
 &pinctrl {
 	state_default: pinctrl0 {
 		gpio {
-			ralink,group = "i2c", "jtag", "uartf", "led";
+			ralink,group = "i2c", "jtag", "uartf", "led", "spi_cs";
 			ralink,function = "gpio";
 		};
 
