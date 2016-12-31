@@ -92,6 +92,13 @@
 			gpio-export,output = <0>;
 			gpios = <&gpio0 20 GPIO_ACTIVE_LOW>;
 		};
+
+		spi_cs1 {
+			gpio-export,name = "spi_cs1";
+			gpio-export,direction_may_change = <1>;
+			gpios = <&gpio2 6 GPIO_ACTIVE_LOW>;
+		};
+
 	};
 };
 
@@ -144,7 +151,7 @@
 &pinctrl {
 	state_default: pinctrl0 {
 		gpio {
-			ralink,group = "i2c", "jtag", "uartf", "led", "spi_cs";
+			ralink,group = "i2c", "jtag", "uartf", "led";
 			ralink,function = "gpio";
 		};
 
@@ -180,3 +187,14 @@
 	status = "okay";
 };
 
+&gpio0 {
+	status = "okay";
+};
+
+&gpio2 {
+	status = "okay";
+};
+
+&usbphy {
+	status = "okay";
+};
