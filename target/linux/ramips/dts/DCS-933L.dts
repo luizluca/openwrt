@@ -59,13 +59,11 @@
 
 		light_sensor {
 			gpio-export,name = "light_sensor";
-			gpio-export,output = <0>;
 			gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
 		};
 
 		ir_led {
 			gpio-export,name = "ir_led";
-			gpio-export,output = <1>;
 			gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
 		};
 
@@ -83,22 +81,22 @@
 
 		ov780_spi_in {
 			gpio-export,name = "ov780_spi_in";
-			gpio-export,output = <0>;
 			gpios = <&gpio0 18 GPIO_ACTIVE_LOW>;
 		};
 
 		ov780_boot_in {
 			gpio-export,name = "ov780_boot_in";
-			gpio-export,output = <0>;
 			gpios = <&gpio0 20 GPIO_ACTIVE_LOW>;
 		};
 
+/*
 		spi_cs1 {
 			gpio-export,name = "spi_cs1";
 			gpio-export,direction_may_change = <1>;
 			gpios = <&gpio2 6 GPIO_ACTIVE_LOW>;
 		};
 
+*/
 	};
 };
 
