@@ -353,14 +353,14 @@ Acked-by: John Crispin <blogic@openwrt.org>
 +
 +	if ((spi->max_speed_hz > master->max_speed_hz) ||
 +			(spi->max_speed_hz < master->min_speed_hz)) {
-+		dev_err(&spi->dev, "invalide requested speed %d Hz\n",
++		dev_err(&spi->dev, "invalid requested speed %d Hz\n",
 +				spi->max_speed_hz);
 +		return -EINVAL;
 +	}
 +
 +	if (!(master->bits_per_word_mask &
 +				BIT(spi->bits_per_word - 1))) {
-+		dev_err(&spi->dev, "invalide bits_per_word %d\n",
++		dev_err(&spi->dev, "invalid bits_per_word %d\n",
 +				spi->bits_per_word);
 +		return -EINVAL;
 +	}
