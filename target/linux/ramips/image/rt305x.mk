@@ -209,7 +209,7 @@ define Device/dcs-933l
   BLOCKSIZE := 4k
   IMAGE_SIZE := $(ralink_default_fw_size_8M)
   DEVICE_TITLE := D-Link DCS-933L
-  DEVICE_PACKAGES := kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-ledtrig-netdev kmod-video-core kmod-video-uvc kmod-sound-core kmod-usb-audio
+  DEVICE_PACKAGES := kmod-usb-core kmod-usb-ohci kmod-usb2 kmod-ledtrig-netdev kmod-video-core kmod-video-uvc kmod-sound-core kmod-usb-audio kmod-spi-dev
 endef
 TARGET_DEVICES += dcs-933l
 
