@@ -30,7 +30,7 @@ Index: linux-4.4.38/arch/mips/include/asm/mach-ralink/rt305x.h
  #define RT5350_GPIO_MODE_SPI_CS1	21
  #define RT3352_GPIO_MODE_LNA		18
  #define RT3352_GPIO_MODE_PA		20
-+#define RT3352_GPIO_MODE_SPI_CS1	45
++#define RT3352_GPIO_MODE_SPI_CS1	21
  
  #define RT3352_SYSC_REG_SYSCFG0		0x010
  #define RT3352_SYSC_REG_SYSCFG1         0x014
