@@ -224,6 +224,10 @@ config KERNEL_DEBUG_GPIO
 	bool "Compile the kernel with gpio debugging"
 	select KERNEL_DEBUG_KERNEL
 
+config KERNEL_SPI_DEBUG
+	bool "Compile the kernel with spi debugging"
+	select KERNEL_DEBUG_KERNEL
+
 config KERNEL_COREDUMP
 	bool
 
