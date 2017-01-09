@@ -125,6 +125,32 @@ config KERNEL_DEBUG_LL
 	help
 	  ARM low level debugging.
 
+config KERNEL_KGDB
+	bool
+	default n
+
+config KERNEL_SERIAL_KGDB_NMI
+	bool
+	default n
+
+config KERNEL_KGDB_TESTS
+	bool
+	default n
+
+config KERNEL_KGDB_LOW_LEVEL_TRAP
+	bool
+#	depends on mips || x86
+	default n
+
+config KERNEL_KGDB_KDB
+	bool
+	default n
+
+config KERNEL_KGDB_SERIAL_CONSOLE
+	bool "Compile the kernel with KGDB serial console support"
+	default n
+	select KERNEL_KGDB
+
 config KERNEL_DYNAMIC_DEBUG
 	bool "Compile the kernel with dynamic printk"
 	select KERNEL_DEBUG_FS
