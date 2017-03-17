@@ -8,12 +8,18 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=valgrind
-PKG_VERSION:=3.12.0
+PKG_VERSION:=3.12.99
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=http://valgrind.org/downloads/
 PKG_HASH:=67ca4395b2527247780f36148b084f5743a68ab0c850cb43e4a5b4b012cf76a1
+
+PKG_SOURCE_PROTO:=git
+PKG_SOURCE_URL:=https://github.com/liquid-mirror/valgrind.git
+PKG_SOURCE_DATE:=2017-03-17
+PKG_SOURCE_VERSION:=49adeb25704bbddfd6437e45b6750ae1430be069
+PKG_MIRROR_HASH:=2b85bd5bacaa577354770c1ebceb6a8bad35410002ff329d3bcd3e975774c8b3
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_LICENSE:=GPL-2.0+
@@ -104,6 +110,29 @@ CONFIGURE_ARGS += \
 	--disable-valgrindtk \
 	--without-included-gettext \
 	--with-pagesize=4 \
+
+https://github.com/liquid-mirror/VEX.git
+
+define Download/libVEX
+  VERSION:=06d81f616c51aa72ddea863784c5c07d645b8d23
+  SUBDIR:=VEX
+  PROTO:=git
+  URL:=https://github.com/liquid-mirror/VEX.git
+  DATE:=2017-03-17
+  FILE:=VEX-$(PKG_VERSION)-$$(VERSION).tar.gz
+  MIRROR_HASH:=0b3e2ca015eb9a7dc7e42c40bbdd8f98dc84e7f0742a6dc17a2c817deda1b73c
+endef
+$(eval $(call Download,libVEX))
+
+define Build/Prepare
+	$(call Build/Prepare/Default)
+	$(call Build/Prepare/libVEX)
+endef
+
+define Build/Prepare/libVEX
+	$(eval $(call Download,libVEX))
+	gzip -dc $(DL_DIR)/$(FILE) | tar -C $(PKG_BUILD_DIR) $(TAR_OPTIONS)
+endef
 
 define Package/valgrind/install	
 	$(INSTALL_DIR) $(1)/usr/bin
