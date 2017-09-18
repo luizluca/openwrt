@@ -1,0 +1,11 @@
+--- a/drivers/gpio/gpiolib.c
++++ b/drivers/gpio/gpiolib.c
+@@ -82,7 +82,7 @@ struct gpio_desc *gpio_to_desc(unsigned
+ 	spin_unlock_irqrestore(&gpio_lock, flags);
+ 
+ 	if (!gpio_is_valid(gpio))
+-		WARN(1, "invalid GPIO %d\n", gpio);
++		WARN(1, "invalid GPIO %u\n", gpio);
+ 
+ 	return NULL;
+ }
