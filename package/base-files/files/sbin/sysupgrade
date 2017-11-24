@@ -70,16 +70,19 @@ upgrade-option:
 
 backup-command:
 	-b | --create-backup <file>
-	             create .tar.gz of files specified in sysupgrade.conf
-	             then exit. Does not flash an image. If file is '-',
-	             i.e. stdout, verbosity is set to 0 (i.e. quiet).
+	             create .tar.gz of modified files specified in
+		     sysupgrade.conf, /lib/keep.d/ or listed in
+		     \`opkg list-changed-conffiles\`. Does not flash an image.
+		     If file is '-' (i.e. stdout), verbosity is set to 0 (i.e.
+		     quiet).
 	-r | --restore-backup <file>
 	             restore a .tar.gz created with sysupgrade -b
 	             then exit. Does not flash an image. If file is '-',
 	             the archive is read from stdin.
 	-l | --list-backup
 	             list the files that would be backed up when calling
-	             sysupgrade -b. Does not create a backup file.
+		     sysupgrade -b or preserved over reflash. Does not create a
+		     backup file.
 
 EOF
 	exit 1
@@ -116,11 +119,20 @@ list_changed_conffiles() {
 }
 
 add_uci_conffiles() {
-	local file="$1"
-	( find $(sed -ne '/^[[:space:]]*$/d; /^#/d; p' \
-		/etc/sysupgrade.conf /lib/upgrade/keep.d/* 2>/dev/null) \
-		-type f -o -type l 2>/dev/null;
-	  list_changed_conffiles ) | sort -u > "$file"
+	local file="$1" line
+	set --
+	while read -r line; do
+		[ -n "$line" ] && set -- "$@" "$line"
+	done <<-EOF
+		$(sed -ne '/^[[:space:]]*$/d; /^#/d; p' \
+			/etc/sysupgrade.conf /lib/upgrade/keep.d/* 2>/dev/null
+		)
+		$(opkg list-changed-conffiles 2>/dev/null)
+	EOF
+
+	( find "$@" \( -type f -o -type l \) \
+		\( \( -exec test -e /rom{} \; -exec cmp -s {} /rom{} \; \) -o -print \) 2>/dev/null;
+	) | sort -u > "$file"
 	return 0
 }
 
