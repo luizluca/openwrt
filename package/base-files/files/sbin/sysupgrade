@@ -11,6 +11,7 @@ export SAVE_CONFIG=1
 export SAVE_OVERLAY=0
 export SAVE_OVERLAY_PATH=
 export SAVE_PARTITIONS=1
+export SAVE_INSTALLED_PKGS=0
 export SKIP_UNCHANGED=0
 export CONF_IMAGE=
 export CONF_BACKUP_LIST=0
@@ -31,6 +32,7 @@ while [ -n "$1" ]; do
 		-c) export SAVE_OVERLAY=1 SAVE_OVERLAY_PATH=/etc;;
 		-o) export SAVE_OVERLAY=1 SAVE_OVERLAY_PATH=/;;
 		-p) export SAVE_PARTITIONS=0;;
+		-k) export SAVE_INSTALLED_PKGS=1;;
 		-u) export SKIP_UNCHANGED=1;;
 		-b|--create-backup) export CONF_BACKUP="$2" NEED_IMAGE=1; shift;;
 		-r|--restore-backup) export CONF_RESTORE="$2" NEED_IMAGE=1; shift;;
@@ -50,6 +52,7 @@ done
 
 export CONFFILES=/tmp/sysupgrade.conffiles
 export CONF_TAR=/tmp/sysupgrade.tgz
+export INSTALLED_PACKAGES=/etc/sysupgrade.installed
 
 IMAGE="$1"
 
@@ -67,6 +70,8 @@ upgrade-option:
 	-u           skip from backup files that are equals to those in /rom
 	-n           do not save configuration over reflash
 	-p           do not attempt to restore the partition table after flash.
+	-k           include in backup a list of current installed packages at
+	             $INSTALLED_PACKAGES
 	-T | --test
 	             Verify image and config .tar.gz but do not actually flash.
 	-F | --force
@@ -202,6 +207,15 @@ fi
 
 include /lib/upgrade
 
+targz_append() {
+	local tar="$1"
+	local append_tar="$2"
+	(	gunzip -c "$tar" | head -c -1024;
+		gunzip -c $append_tar
+	) | gzip > $tar.new
+	mv -f $tar.new $tar
+}
+
 do_save_conffiles() {
 	local conf_tar="$1"
 
@@ -223,6 +237,22 @@ do_save_conffiles() {
 		exit 1
 	fi
 
+	if [ "$SAVE_INSTALLED_PKGS" -eq 1 ]; then
+		mkdir -p /tmp/etc
+		cd /tmp/
+
+		# Format: pkg-name<TAB>{rom,overlay,unkown}
+		# rom is used for pkgs in /rom, even if updated later
+		find /usr/lib/opkg/info -name "*.control" \( \
+			\( -exec test -f /rom/{} \; -exec echo {} rom \; \) -o \
+			\( -exec test -f /overlay/upper/{} \; -exec echo {} overlay \; \) -o \
+			\( -exec echo {} unknown \; \) \
+			\) | sed -e 's,.*/,,;s/\.control /\t/' > ${INSTALLED_PACKAGES:1}
+
+		tar c${TAR_V}zf sysupgrade.installed.packages.tgz ${INSTALLED_PACKAGES:1}
+		targz_append "$conf_tar" sysupgrade.installed.packages.tgz
+		rm -f sysupgrade.installed.packages.tgz ${INSTALLED_PACKAGES:1}
+	fi
 	rm -f "$CONFFILES"
 }
 
