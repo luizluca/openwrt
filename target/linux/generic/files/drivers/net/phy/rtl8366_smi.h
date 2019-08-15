@@ -65,6 +65,7 @@ struct rtl8366_smi {
 #endif
 	struct mii_bus		*ext_mbus;
 	int			phy_id;
+	u32			flags;
 };
 
 struct rtl8366_vlan_mc {
