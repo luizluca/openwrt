@@ -38,6 +38,9 @@ ramips_switchdev_from_board() {
 	local board=$(board_name)
 
 	case "$board" in
+	"tplink,archer-c5-v4")
+		switchdev=switch1
+		;;
 	esac
 
 	echo "$switchdev"
