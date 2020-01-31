@@ -39,7 +39,7 @@ ramips_switchdev_from_board() {
 
 	case "$board" in
 	"tplink,archer-c5-v4")
-		switchdev=switch1
+		switchdev=rtl8367s
 		;;
 	esac
 
@@ -47,14 +47,11 @@ ramips_switchdev_from_board() {
 }
 
 ramips_set_preinit_iface() {
-	local switchdev=$(ramips_switchdev_from_board)
-	[ -n "$switchdev" ] || switchdev=$(ramips_switchdev_from_soc)
-
-	if [ -n "$switchdev" ]; then
+	for switchdev in $(ramips_switchdev_from_board) $(ramips_switchdev_from_soc); do
 		swconfig dev $switchdev set reset 1
 		swconfig dev $switchdev set enable_vlan 0
 		swconfig dev $switchdev set apply 1
-	fi
+	done
 
 	ifname=eth0
 }
