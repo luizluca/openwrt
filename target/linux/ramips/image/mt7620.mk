@@ -915,7 +915,8 @@ define Device/tplink_archer-c5-v4
   TPLINK_HWID := 0x04DA857C
   TPLINK_HWREV := 0x0C000600
   TPLINK_HWREVADD := 0x04000000
-  IMAGES += factory.bin
+  IMAGES += factory.bin tftp-recovery.bin
+  IMAGE/tftp-recovery.bin := pad-extra 128k | $$(IMAGE/factory.bin)
   DEVICE_MODEL := Archer C5
   DEVICE_VARIANT := v4
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ohci kmod-usb-ledtrig-usbport kmod-mt76x2 kmod-switch-rtl8367b
