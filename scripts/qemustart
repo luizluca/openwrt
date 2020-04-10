@@ -297,6 +297,45 @@ start_qemu_malta() {
 		"${o_qemu_extra[@]}"
 }
 
+start_qemu_riscv() {
+	local bit
+	local qemu_exe
+	local rootfs="$o_rootfs"
+	local kernel="$o_kernel"
+	local mach="${o_mach:-virt}"
+
+	bit="$(echo $o_subtarget | grep -E -o "(32|64)" )"
+	qemu_exe="qemu-system-riscv$bit"
+
+	[ -n "$kernel" ] || kernel="$o_bindir/openwrt-malta-${o_subtarget%-*}-vmlinux-initramfs.elf"
+	kernel=$(get_file "$kernel") ||
+		return 1
+
+	[ -z "$rootfs" ] || {
+		rootfs=$(get_file "$rootfs") ||
+			return 1
+		o_qemu_extra+=( \
+			"-device" "virtio-blk-device,drive=drv0" \
+			"-drive" "file=$rootfs,format=raw,id=drv0" \
+			"-append" "root=/dev/vda2 ro console=ttyS0" \
+		)
+	}
+
+	# NOTE: order of wan, lan -device arguments matters as it will affect which
+	# one will be actually used as the wan, lan network interface inside the
+	# guest machine
+	[ -z "$o_network" ] || {
+		o_qemu_extra+=(
+			-netdev bridge,id=wan,br="$BR_WAN,helper=$HELPER" -device pcnet,netdev=wan,mac="$MAC_WAN"
+			-netdev bridge,id=lan,br="$BR_LAN,helper=$HELPER" -device pcnet,netdev=lan,mac="$MAC_LAN"
+		)
+	}
+
+	"$qemu_exe" -machine "$mach" -nographic \
+		-kernel "$kernel" \
+		"${o_qemu_extra[@]}"
+}
+
 start_qemu_x86() {
 	local qemu_exe
 	local kernel="$o_kernel"
@@ -378,6 +417,7 @@ start_qemu() {
 		armvirt)	start_qemu_armvirt	;;
 		malta)		start_qemu_malta	;;
 		x86)		start_qemu_x86		;;
+		riscv)		start_qemu_riscv	;;
 		*)
 			__errmsg "target $o_target is not supported yet"
 			return 1
