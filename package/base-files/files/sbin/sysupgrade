@@ -225,6 +225,7 @@ do_save_conffiles() {
 	run_hooks "$CONFFILES" $sysupgrade_init_conffiles
 	ask_bool 0 "Edit config file list" && vi "$CONFFILES"
 
+	local RAMFS UMOUNT_ETCBACKUP_DIR INTERNAL_ROOTFS_DATA
 	if [ "$SAVE_INSTALLED_PKGS" -eq 1 ]; then
 		echo "${INSTALLED_PACKAGES}" >> "$CONFFILES"
 		mkdir -p "$ETCBACKUP_DIR"
@@ -237,13 +238,36 @@ do_save_conffiles() {
 				ask_bool 0 "Abort" && exit
 			}
 
-		# Format: pkg-name<TAB>{rom,overlay,unkown}
-		# rom is used for pkgs in /rom, even if updated later
+		set --
+		if [ -d /rom ]; then
+			set -- rom:/rom
+			overlay_dev="$(awk '$2 == "/overlay" { print $1 }' /proc/mounts)"
+			if [ "$overlay_dev" ]; then
+				if [ -r /proc/mtd ]; then
+					rootfs_data_dev="$(awk '$4 == "\"rootfs_data\"" { print "/dev/mtdblock" substr($1,4,length($1)-4) }' /proc/mtd)"
+					if [ "$rootfs_data_dev" ] && [ "$rootfs_data_dev" != $overlay_dev ]; then
+						INTERNAL_ROOTFS_DATA="$(mktemp -d -t sysupgrade.XXXXXX)"
+						if [ "$(head -c 2 "$rootfs_data_dev")" = "$(printf "\x19\x85")" ]; then
+							mount -r -t jffs2 "$rootfs_data_dev" "$INTERNAL_ROOTFS_DATA"
+						else
+							mount -r "$rootfs_data_dev" "$INTERNAL_ROOTFS_DATA"
+						fi && set -- "$@" "internal:$INTERNAL_ROOTFS_DATA/upper"
+					fi
+				fi
+				set -- "$@" overlay:/overlay/upper
+			fi
+		fi
+
+		# Format: pkg-name<TAB>{rom,overlay,internal,unknown}
+		# pkgs from rom are label as rom even if updated later
 		find /usr/lib/opkg/info -name "*.control" \( \
-			\( -exec test -f /rom/{} \; -exec echo {} rom \; \) -o \
-			\( -exec test -f /overlay/upper/{} \; -exec echo {} overlay \; \) -o \
-			\( -exec echo {} unknown \; \) \
-			\) | sed -e 's,.*/,,;s/\.control /\t/' > ${INSTALLED_PACKAGES}
+			$(for rootfs; do
+				if [ -d "${rootfs#*:}" ]; then
+					echo "( -exec test -f ${rootfs#*:}/{} ; -exec printf '%s\t%s\n' {} ${rootfs%%:*} ; ) -o "
+				fi
+			done) \
+			\( -exec printf '%s\t%s\n' {} unknown \; \) \
+			\) | sed -e 's,.*/,,;s/\.control\t/\t/' > ${INSTALLED_PACKAGES}
 	fi
 
 	v "Saving config files..."
@@ -258,6 +282,10 @@ do_save_conffiles() {
 	[ "$UMOUNT_ETCBACKUP_DIR" -eq 1 ] && {
 		umount "$ETCBACKUP_DIR"
 		rm -rf "$RAMFS"
+	}
+	[ -z "$INTERNAL_ROOTFS_DATA" ] || {
+		umount "$INTERNAL_ROOTFS_DATA"
+		rmdir "$INTERNAL_ROOTFS_DATA"
 	}
 	rm -f "$CONFFILES"
 }
