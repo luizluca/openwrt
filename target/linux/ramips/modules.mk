@@ -133,3 +133,19 @@ define KernelPackage/sound-mt7620/description
 endef
 
 $(eval $(call KernelPackage,sound-mt7620))
+
+define KernelPackage/switch-rtl8367s
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+  TITLE:=Realtek RTL8367S switch support
+  DEPENDS:=@TARGET_ramips
+  KCONFIG:=CONFIG_RTL8367S_GSW
+  FILES:=$(LINUX_DIR)/drivers/net/phy/rtk/rtl8367s_gsw.ko
+  AUTOLOAD:=$(call AutoLoad,43,rtl8367s,1)
+endef
+
+define KernelPackage/switch-rtl8367s/description
+ Realtek RTL8367S switch support
+endef
+
+$(eval $(call KernelPackage,switch-rtl8367s))
+
