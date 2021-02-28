@@ -1,0 +1,22 @@
+--- a/drivers/net/phy/Kconfig
++++ b/drivers/net/phy/Kconfig
+@@ -42,6 +42,12 @@ config MDIO_BCM_IPROC
+ 	  This module provides a driver for the MDIO busses found in the
+ 	  Broadcom iProc SoC's.
+ 
++config RTL8367S_GSW
++	tristate "rtl8367 Gigabit Switch support for mt7620"
++	depends on NET_VENDOR_MEDIATEK
++	help
++	  This driver supports rtl8367c in mt7620
++
+ config MDIO_BCM_UNIMAC
+ 	tristate "Broadcom UniMAC MDIO bus controller"
+ 	depends on HAS_IOMEM
+--- a/drivers/net/phy/Makefile
++++ b/drivers/net/phy/Makefile
+@@ -110,3 +110,4 @@ obj-$(CONFIG_TERANETICS_PHY)	+= teraneti
+ obj-$(CONFIG_VITESSE_PHY)	+= vitesse.o
+ obj-$(CONFIG_XILINX_GMII2RGMII) += xilinx_gmii2rgmii.o
++obj-$(CONFIG_RTL8367S_GSW)	+= rtk/
+ 
