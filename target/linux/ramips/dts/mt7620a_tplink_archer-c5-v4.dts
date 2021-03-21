@@ -64,6 +64,14 @@
 		};
 	};
 
+	rtkgsw: rtkgsw@0 {
+		compatible = "mediatek,rtk-gsw";
+		//mediatek,ethsys = <&ethsys>;
+		mediatek,mdio = <&mdio0>;
+		mediatek,reset-pin = <&gpio2 20 GPIO_ACTIVE_HIGH>;
+                //status = "okay";
+	};
+
 /*	rtl8367s {
 		compatible = "realtek,rtl8367b";
 		cpu_port = <7>;
@@ -81,8 +89,6 @@
 };
 
 &ethernet {
-	pinctrl-names = "default";
-	mtd-mac-address = <&rom 0xf100>;
 	pinctrl-0 = <&rgmii1_pins &mdio_pins>;
 
 	port@5 {

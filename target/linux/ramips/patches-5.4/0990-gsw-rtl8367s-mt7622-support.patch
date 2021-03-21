@@ -6,7 +6,7 @@
  
 +config RTL8367S_GSW
 +	tristate "rtl8367 Gigabit Switch support for mt7620"
-+	depends on NET_VENDOR_MEDIATEK
++	depends on NET_VENDOR_MEDIATEK || NET_VENDOR_RALINK
 +	help
 +	  This driver supports rtl8367c in mt7620
 +
