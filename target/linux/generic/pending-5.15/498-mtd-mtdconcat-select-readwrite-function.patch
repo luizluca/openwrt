@@ -1,0 +1,15 @@
+--- a/drivers/mtd/mtdconcat.c
++++ b/drivers/mtd/mtdconcat.c
+@@ -686,8 +686,12 @@ struct mtd_info *mtd_concat_create(struc
+ 		concat->mtd._writev = concat_writev;
+ 	if (subdev_master->_read_oob)
+ 		concat->mtd._read_oob = concat_read_oob;
++	else
++		concat->mtd._read = concat_read;
+ 	if (subdev_master->_write_oob)
+ 		concat->mtd._write_oob = concat_write_oob;
++	else
++		concat->mtd._write = concat_write;
+ 	if (subdev_master->_block_isbad)
+ 		concat->mtd._block_isbad = concat_block_isbad;
+ 	if (subdev_master->_block_markbad)
