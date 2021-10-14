@@ -1,0 +1,26 @@
+From 9af04d2a276c23d568352770ab469a9b414df041 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Mon, 29 Nov 2021 11:30:18 +0100
+Subject: [PATCH v5.17 2/7] net: dsa: rtl8365mb: fix garbled comment
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fixes: 4af2950c50c8 ("net: dsa: realtek-smi: add rtl8365mb subdriver for RTL8365MB-VC")
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/rtl8365mb.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/net/dsa/rtl8365mb.c
++++ b/drivers/net/dsa/rtl8365mb.c
+@@ -277,7 +277,7 @@
+ 		(RTL8365MB_PORT_ISOLATION_REG_BASE + (_physport))
+ #define   RTL8365MB_PORT_ISOLATION_MASK			0x07FF
+ 
+-/* MSTP port state registers - indexed by tree instancrSTI (tree ine */
++/* MSTP port state registers - indexed by tree instance */
+ #define RTL8365MB_MSTI_CTRL_BASE			0x0A00
+ #define RTL8365MB_MSTI_CTRL_REG(_msti, _physport) \
+ 		(RTL8365MB_MSTI_CTRL_BASE + ((_msti) << 1) + ((_physport) >> 3))

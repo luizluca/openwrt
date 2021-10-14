@@ -1,0 +1,43 @@
+From 62d868a6bea430baa6e64d5841a59c71876acf86 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Thu, 16 Jun 2022 00:51:11 +0200
+Subject: [PATCH v6.0 1/5] net: dsa: realtek: rtl8365mb: rename macro RTL8367RB
+ -> RTL8367RB_VB
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The official name of this switch is RTL8367RB-VB, not RTL8367RB. There
+is also an RTL8367RB-VC which is rather different. Change the name of
+the CHIP_ID/_VER macros for reasons of consistency.
+
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+(cherry picked from commit 5eb1a2384066ea11b49065ababd2277f9de7adde)
+---
+ drivers/net/dsa/realtek/rtl8365mb.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -108,8 +108,8 @@
+ #define RTL8365MB_CHIP_ID_8367S		0x6367
+ #define RTL8365MB_CHIP_VER_8367S	0x00A0
+ 
+-#define RTL8365MB_CHIP_ID_8367RB	0x6367
+-#define RTL8365MB_CHIP_VER_8367RB	0x0020
++#define RTL8365MB_CHIP_ID_8367RB_VB	0x6367
++#define RTL8365MB_CHIP_VER_8367RB_VB	0x0020
+ 
+ /* Family-specific data and limits */
+ #define RTL8365MB_PHYADDRMAX		7
+@@ -1988,7 +1988,7 @@ static int rtl8365mb_detect(struct realt
+ 				 "found an RTL8365MB-VC switch (ver=0x%04x)\n",
+ 				 chip_ver);
+ 			break;
+-		case RTL8365MB_CHIP_VER_8367RB:
++		case RTL8365MB_CHIP_VER_8367RB_VB:
+ 			dev_info(priv->dev,
+ 				 "found an RTL8367RB-VB switch (ver=0x%04x)\n",
+ 				 chip_ver);

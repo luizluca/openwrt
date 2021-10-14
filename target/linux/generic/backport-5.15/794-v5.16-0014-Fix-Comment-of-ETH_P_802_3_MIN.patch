@@ -1,0 +1,26 @@
+From 850da23334eb2d9e02f5c6ce56a4aa37fc9e7e1a Mon Sep 17 00:00:00 2001
+From: Xiayu Zhang <Xiayu.Zhang@mediatek.com>
+Date: Wed, 1 Dec 2021 10:57:13 +0800
+Subject: [PATCH v5.16 14/18] Fix Comment of ETH_P_802_3_MIN
+
+The description of ETH_P_802_3_MIN is misleading.
+The value of EthernetType in Ethernet II frame is more than 0x0600,
+the value of Length in 802.3 frame is less than 0x0600.
+
+Signed-off-by: Xiayu Zhang <Xiayu.Zhang@mediatek.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/uapi/linux/if_ether.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/include/uapi/linux/if_ether.h
++++ b/include/uapi/linux/if_ether.h
+@@ -117,7 +117,7 @@
+ #define ETH_P_IFE	0xED3E		/* ForCES inter-FE LFB type */
+ #define ETH_P_AF_IUCV   0xFBFB		/* IBM af_iucv [ NOT AN OFFICIALLY REGISTERED ID ] */
+ 
+-#define ETH_P_802_3_MIN	0x0600		/* If the value in the ethernet type is less than this value
++#define ETH_P_802_3_MIN	0x0600		/* If the value in the ethernet type is more than this value
+ 					 * then the frame is Ethernet II. Else it is 802.3 */
+ 
+ /*

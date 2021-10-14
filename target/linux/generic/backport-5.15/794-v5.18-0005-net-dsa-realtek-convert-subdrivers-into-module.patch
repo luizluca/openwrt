@@ -1,0 +1,2059 @@
+From a9ca7510970173b9228233d3d1c03dd8dce06e23 Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Fri, 28 Jan 2022 03:05:01 -0300
+Subject: [PATCH v5.18 05/27] net: dsa: realtek: convert subdrivers into
+ modules
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Preparing for multiple interfaces support, the drivers
+must be independent of realtek-smi.
+
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Tested-by: Arınç ÜNAL <arinc.unal@arinc9.com>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Reviewed-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/realtek/Kconfig            |  20 +-
+ drivers/net/dsa/realtek/Makefile           |   4 +-
+ drivers/net/dsa/realtek/realtek-smi-core.c | 525 --------------------
+ drivers/net/dsa/realtek/realtek-smi.c      | 531 +++++++++++++++++++++
+ drivers/net/dsa/realtek/rtl8365mb.c        |   4 +
+ drivers/net/dsa/realtek/rtl8366-core.c     | 448 +++++++++++++++++
+ drivers/net/dsa/realtek/rtl8366.c          | 448 -----------------
+ drivers/net/dsa/realtek/rtl8366rb.c        |   4 +
+ 8 files changed, 1008 insertions(+), 976 deletions(-)
+ delete mode 100644 drivers/net/dsa/realtek/realtek-smi-core.c
+ create mode 100644 drivers/net/dsa/realtek/realtek-smi.c
+ create mode 100644 drivers/net/dsa/realtek/rtl8366-core.c
+ delete mode 100644 drivers/net/dsa/realtek/rtl8366.c
+
+--- a/drivers/net/dsa/realtek/Kconfig
++++ b/drivers/net/dsa/realtek/Kconfig
+@@ -2,8 +2,6 @@
+ menuconfig NET_DSA_REALTEK
+ 	tristate "Realtek Ethernet switch family support"
+ 	depends on NET_DSA
+-	select NET_DSA_TAG_RTL4_A
+-	select NET_DSA_TAG_RTL8_4
+ 	select FIXED_PHY
+ 	select IRQ_DOMAIN
+ 	select REALTEK_PHY
+@@ -18,3 +16,21 @@ config NET_DSA_REALTEK_SMI
+ 	help
+ 	  Select to enable support for registering switches connected
+ 	  through SMI.
++
++config NET_DSA_REALTEK_RTL8365MB
++	tristate "Realtek RTL8365MB switch subdriver"
++	default y
++	depends on NET_DSA_REALTEK
++	depends on NET_DSA_REALTEK_SMI
++	select NET_DSA_TAG_RTL8_4
++	help
++	  Select to enable support for Realtek RTL8365MB
++
++config NET_DSA_REALTEK_RTL8366RB
++	tristate "Realtek RTL8366RB switch subdriver"
++	default y
++	depends on NET_DSA_REALTEK
++	depends on NET_DSA_REALTEK_SMI
++	select NET_DSA_TAG_RTL4_A
++	help
++	  Select to enable support for Realtek RTL8366RB
+--- a/drivers/net/dsa/realtek/Makefile
++++ b/drivers/net/dsa/realtek/Makefile
+@@ -1,3 +1,5 @@
+ # SPDX-License-Identifier: GPL-2.0
+ obj-$(CONFIG_NET_DSA_REALTEK_SMI) 	+= realtek-smi.o
+-realtek-smi-objs			:= realtek-smi-core.o rtl8366.o rtl8366rb.o rtl8365mb.o
++obj-$(CONFIG_NET_DSA_REALTEK_RTL8366RB) += rtl8366.o
++rtl8366-objs 				:= rtl8366-core.o rtl8366rb.o
++obj-$(CONFIG_NET_DSA_REALTEK_RTL8365MB) += rtl8365mb.o
+--- a/drivers/net/dsa/realtek/realtek-smi-core.c
++++ /dev/null
+@@ -1,525 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-/* Realtek Simple Management Interface (SMI) driver
+- * It can be discussed how "simple" this interface is.
+- *
+- * The SMI protocol piggy-backs the MDIO MDC and MDIO signals levels
+- * but the protocol is not MDIO at all. Instead it is a Realtek
+- * pecularity that need to bit-bang the lines in a special way to
+- * communicate with the switch.
+- *
+- * ASICs we intend to support with this driver:
+- *
+- * RTL8366   - The original version, apparently
+- * RTL8369   - Similar enough to have the same datsheet as RTL8366
+- * RTL8366RB - Probably reads out "RTL8366 revision B", has a quite
+- *             different register layout from the other two
+- * RTL8366S  - Is this "RTL8366 super"?
+- * RTL8367   - Has an OpenWRT driver as well
+- * RTL8368S  - Seems to be an alternative name for RTL8366RB
+- * RTL8370   - Also uses SMI
+- *
+- * Copyright (C) 2017 Linus Walleij <linus.walleij@linaro.org>
+- * Copyright (C) 2010 Antti Seppälä <a.seppala@gmail.com>
+- * Copyright (C) 2010 Roman Yeryomin <roman@advem.lv>
+- * Copyright (C) 2011 Colin Leitner <colin.leitner@googlemail.com>
+- * Copyright (C) 2009-2010 Gabor Juhos <juhosg@openwrt.org>
+- */
+-
+-#include <linux/kernel.h>
+-#include <linux/module.h>
+-#include <linux/device.h>
+-#include <linux/spinlock.h>
+-#include <linux/skbuff.h>
+-#include <linux/of.h>
+-#include <linux/of_device.h>
+-#include <linux/of_mdio.h>
+-#include <linux/delay.h>
+-#include <linux/gpio/consumer.h>
+-#include <linux/platform_device.h>
+-#include <linux/regmap.h>
+-#include <linux/bitops.h>
+-#include <linux/if_bridge.h>
+-
+-#include "realtek.h"
+-
+-#define REALTEK_SMI_ACK_RETRY_COUNT		5
+-#define REALTEK_SMI_HW_STOP_DELAY		25	/* msecs */
+-#define REALTEK_SMI_HW_START_DELAY		100	/* msecs */
+-
+-static inline void realtek_smi_clk_delay(struct realtek_priv *priv)
+-{
+-	ndelay(priv->clk_delay);
+-}
+-
+-static void realtek_smi_start(struct realtek_priv *priv)
+-{
+-	/* Set GPIO pins to output mode, with initial state:
+-	 * SCK = 0, SDA = 1
+-	 */
+-	gpiod_direction_output(priv->mdc, 0);
+-	gpiod_direction_output(priv->mdio, 1);
+-	realtek_smi_clk_delay(priv);
+-
+-	/* CLK 1: 0 -> 1, 1 -> 0 */
+-	gpiod_set_value(priv->mdc, 1);
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdc, 0);
+-	realtek_smi_clk_delay(priv);
+-
+-	/* CLK 2: */
+-	gpiod_set_value(priv->mdc, 1);
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdio, 0);
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdc, 0);
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdio, 1);
+-}
+-
+-static void realtek_smi_stop(struct realtek_priv *priv)
+-{
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdio, 0);
+-	gpiod_set_value(priv->mdc, 1);
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdio, 1);
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdc, 1);
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdc, 0);
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdc, 1);
+-
+-	/* Add a click */
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdc, 0);
+-	realtek_smi_clk_delay(priv);
+-	gpiod_set_value(priv->mdc, 1);
+-
+-	/* Set GPIO pins to input mode */
+-	gpiod_direction_input(priv->mdio);
+-	gpiod_direction_input(priv->mdc);
+-}
+-
+-static void realtek_smi_write_bits(struct realtek_priv *priv, u32 data, u32 len)
+-{
+-	for (; len > 0; len--) {
+-		realtek_smi_clk_delay(priv);
+-
+-		/* Prepare data */
+-		gpiod_set_value(priv->mdio, !!(data & (1 << (len - 1))));
+-		realtek_smi_clk_delay(priv);
+-
+-		/* Clocking */
+-		gpiod_set_value(priv->mdc, 1);
+-		realtek_smi_clk_delay(priv);
+-		gpiod_set_value(priv->mdc, 0);
+-	}
+-}
+-
+-static void realtek_smi_read_bits(struct realtek_priv *priv, u32 len, u32 *data)
+-{
+-	gpiod_direction_input(priv->mdio);
+-
+-	for (*data = 0; len > 0; len--) {
+-		u32 u;
+-
+-		realtek_smi_clk_delay(priv);
+-
+-		/* Clocking */
+-		gpiod_set_value(priv->mdc, 1);
+-		realtek_smi_clk_delay(priv);
+-		u = !!gpiod_get_value(priv->mdio);
+-		gpiod_set_value(priv->mdc, 0);
+-
+-		*data |= (u << (len - 1));
+-	}
+-
+-	gpiod_direction_output(priv->mdio, 0);
+-}
+-
+-static int realtek_smi_wait_for_ack(struct realtek_priv *priv)
+-{
+-	int retry_cnt;
+-
+-	retry_cnt = 0;
+-	do {
+-		u32 ack;
+-
+-		realtek_smi_read_bits(priv, 1, &ack);
+-		if (ack == 0)
+-			break;
+-
+-		if (++retry_cnt > REALTEK_SMI_ACK_RETRY_COUNT) {
+-			dev_err(priv->dev, "ACK timeout\n");
+-			return -ETIMEDOUT;
+-		}
+-	} while (1);
+-
+-	return 0;
+-}
+-
+-static int realtek_smi_write_byte(struct realtek_priv *priv, u8 data)
+-{
+-	realtek_smi_write_bits(priv, data, 8);
+-	return realtek_smi_wait_for_ack(priv);
+-}
+-
+-static int realtek_smi_write_byte_noack(struct realtek_priv *priv, u8 data)
+-{
+-	realtek_smi_write_bits(priv, data, 8);
+-	return 0;
+-}
+-
+-static int realtek_smi_read_byte0(struct realtek_priv *priv, u8 *data)
+-{
+-	u32 t;
+-
+-	/* Read data */
+-	realtek_smi_read_bits(priv, 8, &t);
+-	*data = (t & 0xff);
+-
+-	/* Send an ACK */
+-	realtek_smi_write_bits(priv, 0x00, 1);
+-
+-	return 0;
+-}
+-
+-static int realtek_smi_read_byte1(struct realtek_priv *priv, u8 *data)
+-{
+-	u32 t;
+-
+-	/* Read data */
+-	realtek_smi_read_bits(priv, 8, &t);
+-	*data = (t & 0xff);
+-
+-	/* Send an ACK */
+-	realtek_smi_write_bits(priv, 0x01, 1);
+-
+-	return 0;
+-}
+-
+-static int realtek_smi_read_reg(struct realtek_priv *priv, u32 addr, u32 *data)
+-{
+-	unsigned long flags;
+-	u8 lo = 0;
+-	u8 hi = 0;
+-	int ret;
+-
+-	spin_lock_irqsave(&priv->lock, flags);
+-
+-	realtek_smi_start(priv);
+-
+-	/* Send READ command */
+-	ret = realtek_smi_write_byte(priv, priv->cmd_read);
+-	if (ret)
+-		goto out;
+-
+-	/* Set ADDR[7:0] */
+-	ret = realtek_smi_write_byte(priv, addr & 0xff);
+-	if (ret)
+-		goto out;
+-
+-	/* Set ADDR[15:8] */
+-	ret = realtek_smi_write_byte(priv, addr >> 8);
+-	if (ret)
+-		goto out;
+-
+-	/* Read DATA[7:0] */
+-	realtek_smi_read_byte0(priv, &lo);
+-	/* Read DATA[15:8] */
+-	realtek_smi_read_byte1(priv, &hi);
+-
+-	*data = ((u32)lo) | (((u32)hi) << 8);
+-
+-	ret = 0;
+-
+- out:
+-	realtek_smi_stop(priv);
+-	spin_unlock_irqrestore(&priv->lock, flags);
+-
+-	return ret;
+-}
+-
+-static int realtek_smi_write_reg(struct realtek_priv *priv,
+-				 u32 addr, u32 data, bool ack)
+-{
+-	unsigned long flags;
+-	int ret;
+-
+-	spin_lock_irqsave(&priv->lock, flags);
+-
+-	realtek_smi_start(priv);
+-
+-	/* Send WRITE command */
+-	ret = realtek_smi_write_byte(priv, priv->cmd_write);
+-	if (ret)
+-		goto out;
+-
+-	/* Set ADDR[7:0] */
+-	ret = realtek_smi_write_byte(priv, addr & 0xff);
+-	if (ret)
+-		goto out;
+-
+-	/* Set ADDR[15:8] */
+-	ret = realtek_smi_write_byte(priv, addr >> 8);
+-	if (ret)
+-		goto out;
+-
+-	/* Write DATA[7:0] */
+-	ret = realtek_smi_write_byte(priv, data & 0xff);
+-	if (ret)
+-		goto out;
+-
+-	/* Write DATA[15:8] */
+-	if (ack)
+-		ret = realtek_smi_write_byte(priv, data >> 8);
+-	else
+-		ret = realtek_smi_write_byte_noack(priv, data >> 8);
+-	if (ret)
+-		goto out;
+-
+-	ret = 0;
+-
+- out:
+-	realtek_smi_stop(priv);
+-	spin_unlock_irqrestore(&priv->lock, flags);
+-
+-	return ret;
+-}
+-
+-/* There is one single case when we need to use this accessor and that
+- * is when issueing soft reset. Since the device reset as soon as we write
+- * that bit, no ACK will come back for natural reasons.
+- */
+-static int realtek_smi_write_reg_noack(void *ctx, u32 reg, u32 val)
+-{
+-	return realtek_smi_write_reg(ctx, reg, val, false);
+-}
+-
+-/* Regmap accessors */
+-
+-static int realtek_smi_write(void *ctx, u32 reg, u32 val)
+-{
+-	struct realtek_priv *priv = ctx;
+-
+-	return realtek_smi_write_reg(priv, reg, val, true);
+-}
+-
+-static int realtek_smi_read(void *ctx, u32 reg, u32 *val)
+-{
+-	struct realtek_priv *priv = ctx;
+-
+-	return realtek_smi_read_reg(priv, reg, val);
+-}
+-
+-static const struct regmap_config realtek_smi_mdio_regmap_config = {
+-	.reg_bits = 10, /* A4..A0 R4..R0 */
+-	.val_bits = 16,
+-	.reg_stride = 1,
+-	/* PHY regs are at 0x8000 */
+-	.max_register = 0xffff,
+-	.reg_format_endian = REGMAP_ENDIAN_BIG,
+-	.reg_read = realtek_smi_read,
+-	.reg_write = realtek_smi_write,
+-	.cache_type = REGCACHE_NONE,
+-};
+-
+-static int realtek_smi_mdio_read(struct mii_bus *bus, int addr, int regnum)
+-{
+-	struct realtek_priv *priv = bus->priv;
+-
+-	return priv->ops->phy_read(priv, addr, regnum);
+-}
+-
+-static int realtek_smi_mdio_write(struct mii_bus *bus, int addr, int regnum,
+-				  u16 val)
+-{
+-	struct realtek_priv *priv = bus->priv;
+-
+-	return priv->ops->phy_write(priv, addr, regnum, val);
+-}
+-
+-static int realtek_smi_setup_mdio(struct dsa_switch *ds)
+-{
+-	struct realtek_priv *priv =  ds->priv;
+-	struct device_node *mdio_np;
+-	int ret;
+-
+-	mdio_np = of_get_compatible_child(priv->dev->of_node, "realtek,smi-mdio");
+-	if (!mdio_np) {
+-		dev_err(priv->dev, "no MDIO bus node\n");
+-		return -ENODEV;
+-	}
+-
+-	priv->slave_mii_bus = devm_mdiobus_alloc(priv->dev);
+-	if (!priv->slave_mii_bus) {
+-		ret = -ENOMEM;
+-		goto err_put_node;
+-	}
+-	priv->slave_mii_bus->priv = priv;
+-	priv->slave_mii_bus->name = "SMI slave MII";
+-	priv->slave_mii_bus->read = realtek_smi_mdio_read;
+-	priv->slave_mii_bus->write = realtek_smi_mdio_write;
+-	snprintf(priv->slave_mii_bus->id, MII_BUS_ID_SIZE, "SMI-%d",
+-		 ds->index);
+-	priv->slave_mii_bus->dev.of_node = mdio_np;
+-	priv->slave_mii_bus->parent = priv->dev;
+-	ds->slave_mii_bus = priv->slave_mii_bus;
+-
+-	ret = devm_of_mdiobus_register(priv->dev, priv->slave_mii_bus, mdio_np);
+-	if (ret) {
+-		dev_err(priv->dev, "unable to register MDIO bus %s\n",
+-			priv->slave_mii_bus->id);
+-		goto err_put_node;
+-	}
+-
+-	return 0;
+-
+-err_put_node:
+-	of_node_put(mdio_np);
+-
+-	return ret;
+-}
+-
+-static int realtek_smi_probe(struct platform_device *pdev)
+-{
+-	const struct realtek_variant *var;
+-	struct device *dev = &pdev->dev;
+-	struct realtek_priv *priv;
+-	struct device_node *np;
+-	int ret;
+-
+-	var = of_device_get_match_data(dev);
+-	np = dev->of_node;
+-
+-	priv = devm_kzalloc(dev, sizeof(*priv) + var->chip_data_sz, GFP_KERNEL);
+-	if (!priv)
+-		return -ENOMEM;
+-	priv->chip_data = (void *)priv + sizeof(*priv);
+-	priv->map = devm_regmap_init(dev, NULL, priv,
+-				     &realtek_smi_mdio_regmap_config);
+-	if (IS_ERR(priv->map)) {
+-		ret = PTR_ERR(priv->map);
+-		dev_err(dev, "regmap init failed: %d\n", ret);
+-		return ret;
+-	}
+-
+-	/* Link forward and backward */
+-	priv->dev = dev;
+-	priv->clk_delay = var->clk_delay;
+-	priv->cmd_read = var->cmd_read;
+-	priv->cmd_write = var->cmd_write;
+-	priv->ops = var->ops;
+-
+-	priv->setup_interface = realtek_smi_setup_mdio;
+-	priv->write_reg_noack = realtek_smi_write_reg_noack;
+-
+-	dev_set_drvdata(dev, priv);
+-	spin_lock_init(&priv->lock);
+-
+-	/* TODO: if power is software controlled, set up any regulators here */
+-
+-	/* Assert then deassert RESET */
+-	priv->reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
+-	if (IS_ERR(priv->reset)) {
+-		dev_err(dev, "failed to get RESET GPIO\n");
+-		return PTR_ERR(priv->reset);
+-	}
+-	msleep(REALTEK_SMI_HW_STOP_DELAY);
+-	gpiod_set_value(priv->reset, 0);
+-	msleep(REALTEK_SMI_HW_START_DELAY);
+-	dev_info(dev, "deasserted RESET\n");
+-
+-	/* Fetch MDIO pins */
+-	priv->mdc = devm_gpiod_get_optional(dev, "mdc", GPIOD_OUT_LOW);
+-	if (IS_ERR(priv->mdc))
+-		return PTR_ERR(priv->mdc);
+-	priv->mdio = devm_gpiod_get_optional(dev, "mdio", GPIOD_OUT_LOW);
+-	if (IS_ERR(priv->mdio))
+-		return PTR_ERR(priv->mdio);
+-
+-	priv->leds_disabled = of_property_read_bool(np, "realtek,disable-leds");
+-
+-	ret = priv->ops->detect(priv);
+-	if (ret) {
+-		dev_err(dev, "unable to detect switch\n");
+-		return ret;
+-	}
+-
+-	priv->ds = devm_kzalloc(dev, sizeof(*priv->ds), GFP_KERNEL);
+-	if (!priv->ds)
+-		return -ENOMEM;
+-
+-	priv->ds->dev = dev;
+-	priv->ds->num_ports = priv->num_ports;
+-	priv->ds->priv = priv;
+-
+-	priv->ds->ops = var->ds_ops;
+-	ret = dsa_register_switch(priv->ds);
+-	if (ret) {
+-		dev_err_probe(dev, ret, "unable to register switch\n");
+-		return ret;
+-	}
+-	return 0;
+-}
+-
+-static int realtek_smi_remove(struct platform_device *pdev)
+-{
+-	struct realtek_priv *priv = platform_get_drvdata(pdev);
+-
+-	if (!priv)
+-		return 0;
+-
+-	dsa_unregister_switch(priv->ds);
+-	if (priv->slave_mii_bus)
+-		of_node_put(priv->slave_mii_bus->dev.of_node);
+-	gpiod_set_value(priv->reset, 1);
+-
+-	platform_set_drvdata(pdev, NULL);
+-
+-	return 0;
+-}
+-
+-static void realtek_smi_shutdown(struct platform_device *pdev)
+-{
+-	struct realtek_priv *priv = platform_get_drvdata(pdev);
+-
+-	if (!priv)
+-		return;
+-
+-	dsa_switch_shutdown(priv->ds);
+-
+-	platform_set_drvdata(pdev, NULL);
+-}
+-
+-static const struct of_device_id realtek_smi_of_match[] = {
+-	{
+-		.compatible = "realtek,rtl8366rb",
+-		.data = &rtl8366rb_variant,
+-	},
+-	{
+-		/* FIXME: add support for RTL8366S and more */
+-		.compatible = "realtek,rtl8366s",
+-		.data = NULL,
+-	},
+-	{
+-		.compatible = "realtek,rtl8365mb",
+-		.data = &rtl8365mb_variant,
+-	},
+-	{ /* sentinel */ },
+-};
+-MODULE_DEVICE_TABLE(of, realtek_smi_of_match);
+-
+-static struct platform_driver realtek_smi_driver = {
+-	.driver = {
+-		.name = "realtek-smi",
+-		.of_match_table = of_match_ptr(realtek_smi_of_match),
+-	},
+-	.probe  = realtek_smi_probe,
+-	.remove = realtek_smi_remove,
+-	.shutdown = realtek_smi_shutdown,
+-};
+-module_platform_driver(realtek_smi_driver);
+-
+-MODULE_LICENSE("GPL");
+--- /dev/null
++++ b/drivers/net/dsa/realtek/realtek-smi.c
+@@ -0,0 +1,531 @@
++// SPDX-License-Identifier: GPL-2.0+
++/* Realtek Simple Management Interface (SMI) driver
++ * It can be discussed how "simple" this interface is.
++ *
++ * The SMI protocol piggy-backs the MDIO MDC and MDIO signals levels
++ * but the protocol is not MDIO at all. Instead it is a Realtek
++ * pecularity that need to bit-bang the lines in a special way to
++ * communicate with the switch.
++ *
++ * ASICs we intend to support with this driver:
++ *
++ * RTL8366   - The original version, apparently
++ * RTL8369   - Similar enough to have the same datsheet as RTL8366
++ * RTL8366RB - Probably reads out "RTL8366 revision B", has a quite
++ *             different register layout from the other two
++ * RTL8366S  - Is this "RTL8366 super"?
++ * RTL8367   - Has an OpenWRT driver as well
++ * RTL8368S  - Seems to be an alternative name for RTL8366RB
++ * RTL8370   - Also uses SMI
++ *
++ * Copyright (C) 2017 Linus Walleij <linus.walleij@linaro.org>
++ * Copyright (C) 2010 Antti Seppälä <a.seppala@gmail.com>
++ * Copyright (C) 2010 Roman Yeryomin <roman@advem.lv>
++ * Copyright (C) 2011 Colin Leitner <colin.leitner@googlemail.com>
++ * Copyright (C) 2009-2010 Gabor Juhos <juhosg@openwrt.org>
++ */
++
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/device.h>
++#include <linux/spinlock.h>
++#include <linux/skbuff.h>
++#include <linux/of.h>
++#include <linux/of_device.h>
++#include <linux/of_mdio.h>
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/bitops.h>
++#include <linux/if_bridge.h>
++
++#include "realtek.h"
++
++#define REALTEK_SMI_ACK_RETRY_COUNT		5
++#define REALTEK_SMI_HW_STOP_DELAY		25	/* msecs */
++#define REALTEK_SMI_HW_START_DELAY		100	/* msecs */
++
++static inline void realtek_smi_clk_delay(struct realtek_priv *priv)
++{
++	ndelay(priv->clk_delay);
++}
++
++static void realtek_smi_start(struct realtek_priv *priv)
++{
++	/* Set GPIO pins to output mode, with initial state:
++	 * SCK = 0, SDA = 1
++	 */
++	gpiod_direction_output(priv->mdc, 0);
++	gpiod_direction_output(priv->mdio, 1);
++	realtek_smi_clk_delay(priv);
++
++	/* CLK 1: 0 -> 1, 1 -> 0 */
++	gpiod_set_value(priv->mdc, 1);
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdc, 0);
++	realtek_smi_clk_delay(priv);
++
++	/* CLK 2: */
++	gpiod_set_value(priv->mdc, 1);
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdio, 0);
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdc, 0);
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdio, 1);
++}
++
++static void realtek_smi_stop(struct realtek_priv *priv)
++{
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdio, 0);
++	gpiod_set_value(priv->mdc, 1);
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdio, 1);
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdc, 1);
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdc, 0);
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdc, 1);
++
++	/* Add a click */
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdc, 0);
++	realtek_smi_clk_delay(priv);
++	gpiod_set_value(priv->mdc, 1);
++
++	/* Set GPIO pins to input mode */
++	gpiod_direction_input(priv->mdio);
++	gpiod_direction_input(priv->mdc);
++}
++
++static void realtek_smi_write_bits(struct realtek_priv *priv, u32 data, u32 len)
++{
++	for (; len > 0; len--) {
++		realtek_smi_clk_delay(priv);
++
++		/* Prepare data */
++		gpiod_set_value(priv->mdio, !!(data & (1 << (len - 1))));
++		realtek_smi_clk_delay(priv);
++
++		/* Clocking */
++		gpiod_set_value(priv->mdc, 1);
++		realtek_smi_clk_delay(priv);
++		gpiod_set_value(priv->mdc, 0);
++	}
++}
++
++static void realtek_smi_read_bits(struct realtek_priv *priv, u32 len, u32 *data)
++{
++	gpiod_direction_input(priv->mdio);
++
++	for (*data = 0; len > 0; len--) {
++		u32 u;
++
++		realtek_smi_clk_delay(priv);
++
++		/* Clocking */
++		gpiod_set_value(priv->mdc, 1);
++		realtek_smi_clk_delay(priv);
++		u = !!gpiod_get_value(priv->mdio);
++		gpiod_set_value(priv->mdc, 0);
++
++		*data |= (u << (len - 1));
++	}
++
++	gpiod_direction_output(priv->mdio, 0);
++}
++
++static int realtek_smi_wait_for_ack(struct realtek_priv *priv)
++{
++	int retry_cnt;
++
++	retry_cnt = 0;
++	do {
++		u32 ack;
++
++		realtek_smi_read_bits(priv, 1, &ack);
++		if (ack == 0)
++			break;
++
++		if (++retry_cnt > REALTEK_SMI_ACK_RETRY_COUNT) {
++			dev_err(priv->dev, "ACK timeout\n");
++			return -ETIMEDOUT;
++		}
++	} while (1);
++
++	return 0;
++}
++
++static int realtek_smi_write_byte(struct realtek_priv *priv, u8 data)
++{
++	realtek_smi_write_bits(priv, data, 8);
++	return realtek_smi_wait_for_ack(priv);
++}
++
++static int realtek_smi_write_byte_noack(struct realtek_priv *priv, u8 data)
++{
++	realtek_smi_write_bits(priv, data, 8);
++	return 0;
++}
++
++static int realtek_smi_read_byte0(struct realtek_priv *priv, u8 *data)
++{
++	u32 t;
++
++	/* Read data */
++	realtek_smi_read_bits(priv, 8, &t);
++	*data = (t & 0xff);
++
++	/* Send an ACK */
++	realtek_smi_write_bits(priv, 0x00, 1);
++
++	return 0;
++}
++
++static int realtek_smi_read_byte1(struct realtek_priv *priv, u8 *data)
++{
++	u32 t;
++
++	/* Read data */
++	realtek_smi_read_bits(priv, 8, &t);
++	*data = (t & 0xff);
++
++	/* Send an ACK */
++	realtek_smi_write_bits(priv, 0x01, 1);
++
++	return 0;
++}
++
++static int realtek_smi_read_reg(struct realtek_priv *priv, u32 addr, u32 *data)
++{
++	unsigned long flags;
++	u8 lo = 0;
++	u8 hi = 0;
++	int ret;
++
++	spin_lock_irqsave(&priv->lock, flags);
++
++	realtek_smi_start(priv);
++
++	/* Send READ command */
++	ret = realtek_smi_write_byte(priv, priv->cmd_read);
++	if (ret)
++		goto out;
++
++	/* Set ADDR[7:0] */
++	ret = realtek_smi_write_byte(priv, addr & 0xff);
++	if (ret)
++		goto out;
++
++	/* Set ADDR[15:8] */
++	ret = realtek_smi_write_byte(priv, addr >> 8);
++	if (ret)
++		goto out;
++
++	/* Read DATA[7:0] */
++	realtek_smi_read_byte0(priv, &lo);
++	/* Read DATA[15:8] */
++	realtek_smi_read_byte1(priv, &hi);
++
++	*data = ((u32)lo) | (((u32)hi) << 8);
++
++	ret = 0;
++
++ out:
++	realtek_smi_stop(priv);
++	spin_unlock_irqrestore(&priv->lock, flags);
++
++	return ret;
++}
++
++static int realtek_smi_write_reg(struct realtek_priv *priv,
++				 u32 addr, u32 data, bool ack)
++{
++	unsigned long flags;
++	int ret;
++
++	spin_lock_irqsave(&priv->lock, flags);
++
++	realtek_smi_start(priv);
++
++	/* Send WRITE command */
++	ret = realtek_smi_write_byte(priv, priv->cmd_write);
++	if (ret)
++		goto out;
++
++	/* Set ADDR[7:0] */
++	ret = realtek_smi_write_byte(priv, addr & 0xff);
++	if (ret)
++		goto out;
++
++	/* Set ADDR[15:8] */
++	ret = realtek_smi_write_byte(priv, addr >> 8);
++	if (ret)
++		goto out;
++
++	/* Write DATA[7:0] */
++	ret = realtek_smi_write_byte(priv, data & 0xff);
++	if (ret)
++		goto out;
++
++	/* Write DATA[15:8] */
++	if (ack)
++		ret = realtek_smi_write_byte(priv, data >> 8);
++	else
++		ret = realtek_smi_write_byte_noack(priv, data >> 8);
++	if (ret)
++		goto out;
++
++	ret = 0;
++
++ out:
++	realtek_smi_stop(priv);
++	spin_unlock_irqrestore(&priv->lock, flags);
++
++	return ret;
++}
++
++/* There is one single case when we need to use this accessor and that
++ * is when issueing soft reset. Since the device reset as soon as we write
++ * that bit, no ACK will come back for natural reasons.
++ */
++static int realtek_smi_write_reg_noack(void *ctx, u32 reg, u32 val)
++{
++	return realtek_smi_write_reg(ctx, reg, val, false);
++}
++
++/* Regmap accessors */
++
++static int realtek_smi_write(void *ctx, u32 reg, u32 val)
++{
++	struct realtek_priv *priv = ctx;
++
++	return realtek_smi_write_reg(priv, reg, val, true);
++}
++
++static int realtek_smi_read(void *ctx, u32 reg, u32 *val)
++{
++	struct realtek_priv *priv = ctx;
++
++	return realtek_smi_read_reg(priv, reg, val);
++}
++
++static const struct regmap_config realtek_smi_mdio_regmap_config = {
++	.reg_bits = 10, /* A4..A0 R4..R0 */
++	.val_bits = 16,
++	.reg_stride = 1,
++	/* PHY regs are at 0x8000 */
++	.max_register = 0xffff,
++	.reg_format_endian = REGMAP_ENDIAN_BIG,
++	.reg_read = realtek_smi_read,
++	.reg_write = realtek_smi_write,
++	.cache_type = REGCACHE_NONE,
++};
++
++static int realtek_smi_mdio_read(struct mii_bus *bus, int addr, int regnum)
++{
++	struct realtek_priv *priv = bus->priv;
++
++	return priv->ops->phy_read(priv, addr, regnum);
++}
++
++static int realtek_smi_mdio_write(struct mii_bus *bus, int addr, int regnum,
++				  u16 val)
++{
++	struct realtek_priv *priv = bus->priv;
++
++	return priv->ops->phy_write(priv, addr, regnum, val);
++}
++
++static int realtek_smi_setup_mdio(struct dsa_switch *ds)
++{
++	struct realtek_priv *priv =  ds->priv;
++	struct device_node *mdio_np;
++	int ret;
++
++	mdio_np = of_get_compatible_child(priv->dev->of_node, "realtek,smi-mdio");
++	if (!mdio_np) {
++		dev_err(priv->dev, "no MDIO bus node\n");
++		return -ENODEV;
++	}
++
++	priv->slave_mii_bus = devm_mdiobus_alloc(priv->dev);
++	if (!priv->slave_mii_bus) {
++		ret = -ENOMEM;
++		goto err_put_node;
++	}
++	priv->slave_mii_bus->priv = priv;
++	priv->slave_mii_bus->name = "SMI slave MII";
++	priv->slave_mii_bus->read = realtek_smi_mdio_read;
++	priv->slave_mii_bus->write = realtek_smi_mdio_write;
++	snprintf(priv->slave_mii_bus->id, MII_BUS_ID_SIZE, "SMI-%d",
++		 ds->index);
++	priv->slave_mii_bus->dev.of_node = mdio_np;
++	priv->slave_mii_bus->parent = priv->dev;
++	ds->slave_mii_bus = priv->slave_mii_bus;
++
++	ret = devm_of_mdiobus_register(priv->dev, priv->slave_mii_bus, mdio_np);
++	if (ret) {
++		dev_err(priv->dev, "unable to register MDIO bus %s\n",
++			priv->slave_mii_bus->id);
++		goto err_put_node;
++	}
++
++	return 0;
++
++err_put_node:
++	of_node_put(mdio_np);
++
++	return ret;
++}
++
++static int realtek_smi_probe(struct platform_device *pdev)
++{
++	const struct realtek_variant *var;
++	struct device *dev = &pdev->dev;
++	struct realtek_priv *priv;
++	struct device_node *np;
++	int ret;
++
++	var = of_device_get_match_data(dev);
++	np = dev->of_node;
++
++	priv = devm_kzalloc(dev, sizeof(*priv) + var->chip_data_sz, GFP_KERNEL);
++	if (!priv)
++		return -ENOMEM;
++	priv->chip_data = (void *)priv + sizeof(*priv);
++	priv->map = devm_regmap_init(dev, NULL, priv,
++				     &realtek_smi_mdio_regmap_config);
++	if (IS_ERR(priv->map)) {
++		ret = PTR_ERR(priv->map);
++		dev_err(dev, "regmap init failed: %d\n", ret);
++		return ret;
++	}
++
++	/* Link forward and backward */
++	priv->dev = dev;
++	priv->clk_delay = var->clk_delay;
++	priv->cmd_read = var->cmd_read;
++	priv->cmd_write = var->cmd_write;
++	priv->ops = var->ops;
++
++	priv->setup_interface = realtek_smi_setup_mdio;
++	priv->write_reg_noack = realtek_smi_write_reg_noack;
++
++	dev_set_drvdata(dev, priv);
++	spin_lock_init(&priv->lock);
++
++	/* TODO: if power is software controlled, set up any regulators here */
++
++	/* Assert then deassert RESET */
++	priv->reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(priv->reset)) {
++		dev_err(dev, "failed to get RESET GPIO\n");
++		return PTR_ERR(priv->reset);
++	}
++	msleep(REALTEK_SMI_HW_STOP_DELAY);
++	gpiod_set_value(priv->reset, 0);
++	msleep(REALTEK_SMI_HW_START_DELAY);
++	dev_info(dev, "deasserted RESET\n");
++
++	/* Fetch MDIO pins */
++	priv->mdc = devm_gpiod_get_optional(dev, "mdc", GPIOD_OUT_LOW);
++	if (IS_ERR(priv->mdc))
++		return PTR_ERR(priv->mdc);
++	priv->mdio = devm_gpiod_get_optional(dev, "mdio", GPIOD_OUT_LOW);
++	if (IS_ERR(priv->mdio))
++		return PTR_ERR(priv->mdio);
++
++	priv->leds_disabled = of_property_read_bool(np, "realtek,disable-leds");
++
++	ret = priv->ops->detect(priv);
++	if (ret) {
++		dev_err(dev, "unable to detect switch\n");
++		return ret;
++	}
++
++	priv->ds = devm_kzalloc(dev, sizeof(*priv->ds), GFP_KERNEL);
++	if (!priv->ds)
++		return -ENOMEM;
++
++	priv->ds->dev = dev;
++	priv->ds->num_ports = priv->num_ports;
++	priv->ds->priv = priv;
++
++	priv->ds->ops = var->ds_ops;
++	ret = dsa_register_switch(priv->ds);
++	if (ret) {
++		dev_err_probe(dev, ret, "unable to register switch\n");
++		return ret;
++	}
++	return 0;
++}
++
++static int realtek_smi_remove(struct platform_device *pdev)
++{
++	struct realtek_priv *priv = platform_get_drvdata(pdev);
++
++	if (!priv)
++		return 0;
++
++	dsa_unregister_switch(priv->ds);
++	if (priv->slave_mii_bus)
++		of_node_put(priv->slave_mii_bus->dev.of_node);
++	gpiod_set_value(priv->reset, 1);
++
++	platform_set_drvdata(pdev, NULL);
++
++	return 0;
++}
++
++static void realtek_smi_shutdown(struct platform_device *pdev)
++{
++	struct realtek_priv *priv = platform_get_drvdata(pdev);
++
++	if (!priv)
++		return;
++
++	dsa_switch_shutdown(priv->ds);
++
++	platform_set_drvdata(pdev, NULL);
++}
++
++static const struct of_device_id realtek_smi_of_match[] = {
++#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8366RB)
++	{
++		.compatible = "realtek,rtl8366rb",
++		.data = &rtl8366rb_variant,
++	},
++#endif
++	{
++		/* FIXME: add support for RTL8366S and more */
++		.compatible = "realtek,rtl8366s",
++		.data = NULL,
++	},
++#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8365MB)
++	{
++		.compatible = "realtek,rtl8365mb",
++		.data = &rtl8365mb_variant,
++	},
++#endif
++	{ /* sentinel */ },
++};
++MODULE_DEVICE_TABLE(of, realtek_smi_of_match);
++
++static struct platform_driver realtek_smi_driver = {
++	.driver = {
++		.name = "realtek-smi",
++		.of_match_table = of_match_ptr(realtek_smi_of_match),
++	},
++	.probe  = realtek_smi_probe,
++	.remove = realtek_smi_remove,
++	.shutdown = realtek_smi_shutdown,
++};
++module_platform_driver(realtek_smi_driver);
++
++MODULE_AUTHOR("Linus Walleij <linus.walleij@linaro.org>");
++MODULE_DESCRIPTION("Driver for Realtek ethernet switch connected via SMI interface");
++MODULE_LICENSE("GPL");
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -1986,3 +1986,7 @@ const struct realtek_variant rtl8365mb_v
+ 	.chip_data_sz = sizeof(struct rtl8365mb),
+ };
+ EXPORT_SYMBOL_GPL(rtl8365mb_variant);
++
++MODULE_AUTHOR("Alvin Šipraga <alsi@bang-olufsen.dk>");
++MODULE_DESCRIPTION("Driver for RTL8365MB-VC ethernet switch");
++MODULE_LICENSE("GPL");
+--- /dev/null
++++ b/drivers/net/dsa/realtek/rtl8366-core.c
+@@ -0,0 +1,448 @@
++// SPDX-License-Identifier: GPL-2.0
++/* Realtek SMI library helpers for the RTL8366x variants
++ * RTL8366RB and RTL8366S
++ *
++ * Copyright (C) 2017 Linus Walleij <linus.walleij@linaro.org>
++ * Copyright (C) 2009-2010 Gabor Juhos <juhosg@openwrt.org>
++ * Copyright (C) 2010 Antti Seppälä <a.seppala@gmail.com>
++ * Copyright (C) 2010 Roman Yeryomin <roman@advem.lv>
++ * Copyright (C) 2011 Colin Leitner <colin.leitner@googlemail.com>
++ */
++#include <linux/if_bridge.h>
++#include <net/dsa.h>
++
++#include "realtek.h"
++
++int rtl8366_mc_is_used(struct realtek_priv *priv, int mc_index, int *used)
++{
++	int ret;
++	int i;
++
++	*used = 0;
++	for (i = 0; i < priv->num_ports; i++) {
++		int index = 0;
++
++		ret = priv->ops->get_mc_index(priv, i, &index);
++		if (ret)
++			return ret;
++
++		if (mc_index == index) {
++			*used = 1;
++			break;
++		}
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(rtl8366_mc_is_used);
++
++/**
++ * rtl8366_obtain_mc() - retrieve or allocate a VLAN member configuration
++ * @priv: the Realtek SMI device instance
++ * @vid: the VLAN ID to look up or allocate
++ * @vlanmc: the pointer will be assigned to a pointer to a valid member config
++ * if successful
++ * @return: index of a new member config or negative error number
++ */
++static int rtl8366_obtain_mc(struct realtek_priv *priv, int vid,
++			     struct rtl8366_vlan_mc *vlanmc)
++{
++	struct rtl8366_vlan_4k vlan4k;
++	int ret;
++	int i;
++
++	/* Try to find an existing member config entry for this VID */
++	for (i = 0; i < priv->num_vlan_mc; i++) {
++		ret = priv->ops->get_vlan_mc(priv, i, vlanmc);
++		if (ret) {
++			dev_err(priv->dev, "error searching for VLAN MC %d for VID %d\n",
++				i, vid);
++			return ret;
++		}
++
++		if (vid == vlanmc->vid)
++			return i;
++	}
++
++	/* We have no MC entry for this VID, try to find an empty one */
++	for (i = 0; i < priv->num_vlan_mc; i++) {
++		ret = priv->ops->get_vlan_mc(priv, i, vlanmc);
++		if (ret) {
++			dev_err(priv->dev, "error searching for VLAN MC %d for VID %d\n",
++				i, vid);
++			return ret;
++		}
++
++		if (vlanmc->vid == 0 && vlanmc->member == 0) {
++			/* Update the entry from the 4K table */
++			ret = priv->ops->get_vlan_4k(priv, vid, &vlan4k);
++			if (ret) {
++				dev_err(priv->dev, "error looking for 4K VLAN MC %d for VID %d\n",
++					i, vid);
++				return ret;
++			}
++
++			vlanmc->vid = vid;
++			vlanmc->member = vlan4k.member;
++			vlanmc->untag = vlan4k.untag;
++			vlanmc->fid = vlan4k.fid;
++			ret = priv->ops->set_vlan_mc(priv, i, vlanmc);
++			if (ret) {
++				dev_err(priv->dev, "unable to set/update VLAN MC %d for VID %d\n",
++					i, vid);
++				return ret;
++			}
++
++			dev_dbg(priv->dev, "created new MC at index %d for VID %d\n",
++				i, vid);
++			return i;
++		}
++	}
++
++	/* MC table is full, try to find an unused entry and replace it */
++	for (i = 0; i < priv->num_vlan_mc; i++) {
++		int used;
++
++		ret = rtl8366_mc_is_used(priv, i, &used);
++		if (ret)
++			return ret;
++
++		if (!used) {
++			/* Update the entry from the 4K table */
++			ret = priv->ops->get_vlan_4k(priv, vid, &vlan4k);
++			if (ret)
++				return ret;
++
++			vlanmc->vid = vid;
++			vlanmc->member = vlan4k.member;
++			vlanmc->untag = vlan4k.untag;
++			vlanmc->fid = vlan4k.fid;
++			ret = priv->ops->set_vlan_mc(priv, i, vlanmc);
++			if (ret) {
++				dev_err(priv->dev, "unable to set/update VLAN MC %d for VID %d\n",
++					i, vid);
++				return ret;
++			}
++			dev_dbg(priv->dev, "recycled MC at index %i for VID %d\n",
++				i, vid);
++			return i;
++		}
++	}
++
++	dev_err(priv->dev, "all VLAN member configurations are in use\n");
++	return -ENOSPC;
++}
++
++int rtl8366_set_vlan(struct realtek_priv *priv, int vid, u32 member,
++		     u32 untag, u32 fid)
++{
++	struct rtl8366_vlan_mc vlanmc;
++	struct rtl8366_vlan_4k vlan4k;
++	int mc;
++	int ret;
++
++	if (!priv->ops->is_vlan_valid(priv, vid))
++		return -EINVAL;
++
++	dev_dbg(priv->dev,
++		"setting VLAN%d 4k members: 0x%02x, untagged: 0x%02x\n",
++		vid, member, untag);
++
++	/* Update the 4K table */
++	ret = priv->ops->get_vlan_4k(priv, vid, &vlan4k);
++	if (ret)
++		return ret;
++
++	vlan4k.member |= member;
++	vlan4k.untag |= untag;
++	vlan4k.fid = fid;
++	ret = priv->ops->set_vlan_4k(priv, &vlan4k);
++	if (ret)
++		return ret;
++
++	dev_dbg(priv->dev,
++		"resulting VLAN%d 4k members: 0x%02x, untagged: 0x%02x\n",
++		vid, vlan4k.member, vlan4k.untag);
++
++	/* Find or allocate a member config for this VID */
++	ret = rtl8366_obtain_mc(priv, vid, &vlanmc);
++	if (ret < 0)
++		return ret;
++	mc = ret;
++
++	/* Update the MC entry */
++	vlanmc.member |= member;
++	vlanmc.untag |= untag;
++	vlanmc.fid = fid;
++
++	/* Commit updates to the MC entry */
++	ret = priv->ops->set_vlan_mc(priv, mc, &vlanmc);
++	if (ret)
++		dev_err(priv->dev, "failed to commit changes to VLAN MC index %d for VID %d\n",
++			mc, vid);
++	else
++		dev_dbg(priv->dev,
++			"resulting VLAN%d MC members: 0x%02x, untagged: 0x%02x\n",
++			vid, vlanmc.member, vlanmc.untag);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(rtl8366_set_vlan);
++
++int rtl8366_set_pvid(struct realtek_priv *priv, unsigned int port,
++		     unsigned int vid)
++{
++	struct rtl8366_vlan_mc vlanmc;
++	int mc;
++	int ret;
++
++	if (!priv->ops->is_vlan_valid(priv, vid))
++		return -EINVAL;
++
++	/* Find or allocate a member config for this VID */
++	ret = rtl8366_obtain_mc(priv, vid, &vlanmc);
++	if (ret < 0)
++		return ret;
++	mc = ret;
++
++	ret = priv->ops->set_mc_index(priv, port, mc);
++	if (ret) {
++		dev_err(priv->dev, "set PVID: failed to set MC index %d for port %d\n",
++			mc, port);
++		return ret;
++	}
++
++	dev_dbg(priv->dev, "set PVID: the PVID for port %d set to %d using existing MC index %d\n",
++		port, vid, mc);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(rtl8366_set_pvid);
++
++int rtl8366_enable_vlan4k(struct realtek_priv *priv, bool enable)
++{
++	int ret;
++
++	/* To enable 4k VLAN, ordinary VLAN must be enabled first,
++	 * but if we disable 4k VLAN it is fine to leave ordinary
++	 * VLAN enabled.
++	 */
++	if (enable) {
++		/* Make sure VLAN is ON */
++		ret = priv->ops->enable_vlan(priv, true);
++		if (ret)
++			return ret;
++
++		priv->vlan_enabled = true;
++	}
++
++	ret = priv->ops->enable_vlan4k(priv, enable);
++	if (ret)
++		return ret;
++
++	priv->vlan4k_enabled = enable;
++	return 0;
++}
++EXPORT_SYMBOL_GPL(rtl8366_enable_vlan4k);
++
++int rtl8366_enable_vlan(struct realtek_priv *priv, bool enable)
++{
++	int ret;
++
++	ret = priv->ops->enable_vlan(priv, enable);
++	if (ret)
++		return ret;
++
++	priv->vlan_enabled = enable;
++
++	/* If we turn VLAN off, make sure that we turn off
++	 * 4k VLAN as well, if that happened to be on.
++	 */
++	if (!enable) {
++		priv->vlan4k_enabled = false;
++		ret = priv->ops->enable_vlan4k(priv, false);
++	}
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(rtl8366_enable_vlan);
++
++int rtl8366_reset_vlan(struct realtek_priv *priv)
++{
++	struct rtl8366_vlan_mc vlanmc;
++	int ret;
++	int i;
++
++	rtl8366_enable_vlan(priv, false);
++	rtl8366_enable_vlan4k(priv, false);
++
++	/* Clear the 16 VLAN member configurations */
++	vlanmc.vid = 0;
++	vlanmc.priority = 0;
++	vlanmc.member = 0;
++	vlanmc.untag = 0;
++	vlanmc.fid = 0;
++	for (i = 0; i < priv->num_vlan_mc; i++) {
++		ret = priv->ops->set_vlan_mc(priv, i, &vlanmc);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(rtl8366_reset_vlan);
++
++int rtl8366_vlan_add(struct dsa_switch *ds, int port,
++		     const struct switchdev_obj_port_vlan *vlan,
++		     struct netlink_ext_ack *extack)
++{
++	bool untagged = !!(vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED);
++	bool pvid = !!(vlan->flags & BRIDGE_VLAN_INFO_PVID);
++	struct realtek_priv *priv = ds->priv;
++	u32 member = 0;
++	u32 untag = 0;
++	int ret;
++
++	if (!priv->ops->is_vlan_valid(priv, vlan->vid)) {
++		NL_SET_ERR_MSG_MOD(extack, "VLAN ID not valid");
++		return -EINVAL;
++	}
++
++	/* Enable VLAN in the hardware
++	 * FIXME: what's with this 4k business?
++	 * Just rtl8366_enable_vlan() seems inconclusive.
++	 */
++	ret = rtl8366_enable_vlan4k(priv, true);
++	if (ret) {
++		NL_SET_ERR_MSG_MOD(extack, "Failed to enable VLAN 4K");
++		return ret;
++	}
++
++	dev_dbg(priv->dev, "add VLAN %d on port %d, %s, %s\n",
++		vlan->vid, port, untagged ? "untagged" : "tagged",
++		pvid ? "PVID" : "no PVID");
++
++	member |= BIT(port);
++
++	if (untagged)
++		untag |= BIT(port);
++
++	ret = rtl8366_set_vlan(priv, vlan->vid, member, untag, 0);
++	if (ret) {
++		dev_err(priv->dev, "failed to set up VLAN %04x", vlan->vid);
++		return ret;
++	}
++
++	if (!pvid)
++		return 0;
++
++	ret = rtl8366_set_pvid(priv, port, vlan->vid);
++	if (ret) {
++		dev_err(priv->dev, "failed to set PVID on port %d to VLAN %04x",
++			port, vlan->vid);
++		return ret;
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(rtl8366_vlan_add);
++
++int rtl8366_vlan_del(struct dsa_switch *ds, int port,
++		     const struct switchdev_obj_port_vlan *vlan)
++{
++	struct realtek_priv *priv = ds->priv;
++	int ret, i;
++
++	dev_dbg(priv->dev, "del VLAN %d on port %d\n", vlan->vid, port);
++
++	for (i = 0; i < priv->num_vlan_mc; i++) {
++		struct rtl8366_vlan_mc vlanmc;
++
++		ret = priv->ops->get_vlan_mc(priv, i, &vlanmc);
++		if (ret)
++			return ret;
++
++		if (vlan->vid == vlanmc.vid) {
++			/* Remove this port from the VLAN */
++			vlanmc.member &= ~BIT(port);
++			vlanmc.untag &= ~BIT(port);
++			/*
++			 * If no ports are members of this VLAN
++			 * anymore then clear the whole member
++			 * config so it can be reused.
++			 */
++			if (!vlanmc.member) {
++				vlanmc.vid = 0;
++				vlanmc.priority = 0;
++				vlanmc.fid = 0;
++			}
++			ret = priv->ops->set_vlan_mc(priv, i, &vlanmc);
++			if (ret) {
++				dev_err(priv->dev,
++					"failed to remove VLAN %04x\n",
++					vlan->vid);
++				return ret;
++			}
++			break;
++		}
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(rtl8366_vlan_del);
++
++void rtl8366_get_strings(struct dsa_switch *ds, int port, u32 stringset,
++			 uint8_t *data)
++{
++	struct realtek_priv *priv = ds->priv;
++	struct rtl8366_mib_counter *mib;
++	int i;
++
++	if (port >= priv->num_ports)
++		return;
++
++	for (i = 0; i < priv->num_mib_counters; i++) {
++		mib = &priv->mib_counters[i];
++		strncpy(data + i * ETH_GSTRING_LEN,
++			mib->name, ETH_GSTRING_LEN);
++	}
++}
++EXPORT_SYMBOL_GPL(rtl8366_get_strings);
++
++int rtl8366_get_sset_count(struct dsa_switch *ds, int port, int sset)
++{
++	struct realtek_priv *priv = ds->priv;
++
++	/* We only support SS_STATS */
++	if (sset != ETH_SS_STATS)
++		return 0;
++	if (port >= priv->num_ports)
++		return -EINVAL;
++
++	return priv->num_mib_counters;
++}
++EXPORT_SYMBOL_GPL(rtl8366_get_sset_count);
++
++void rtl8366_get_ethtool_stats(struct dsa_switch *ds, int port, uint64_t *data)
++{
++	struct realtek_priv *priv = ds->priv;
++	int i;
++	int ret;
++
++	if (port >= priv->num_ports)
++		return;
++
++	for (i = 0; i < priv->num_mib_counters; i++) {
++		struct rtl8366_mib_counter *mib;
++		u64 mibvalue = 0;
++
++		mib = &priv->mib_counters[i];
++		ret = priv->ops->get_mib_counter(priv, port, mib, &mibvalue);
++		if (ret) {
++			dev_err(priv->dev, "error reading MIB counter %s\n",
++				mib->name);
++		}
++		data[i] = mibvalue;
++	}
++}
++EXPORT_SYMBOL_GPL(rtl8366_get_ethtool_stats);
+--- a/drivers/net/dsa/realtek/rtl8366.c
++++ /dev/null
+@@ -1,448 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0
+-/* Realtek SMI library helpers for the RTL8366x variants
+- * RTL8366RB and RTL8366S
+- *
+- * Copyright (C) 2017 Linus Walleij <linus.walleij@linaro.org>
+- * Copyright (C) 2009-2010 Gabor Juhos <juhosg@openwrt.org>
+- * Copyright (C) 2010 Antti Seppälä <a.seppala@gmail.com>
+- * Copyright (C) 2010 Roman Yeryomin <roman@advem.lv>
+- * Copyright (C) 2011 Colin Leitner <colin.leitner@googlemail.com>
+- */
+-#include <linux/if_bridge.h>
+-#include <net/dsa.h>
+-
+-#include "realtek.h"
+-
+-int rtl8366_mc_is_used(struct realtek_priv *priv, int mc_index, int *used)
+-{
+-	int ret;
+-	int i;
+-
+-	*used = 0;
+-	for (i = 0; i < priv->num_ports; i++) {
+-		int index = 0;
+-
+-		ret = priv->ops->get_mc_index(priv, i, &index);
+-		if (ret)
+-			return ret;
+-
+-		if (mc_index == index) {
+-			*used = 1;
+-			break;
+-		}
+-	}
+-
+-	return 0;
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_mc_is_used);
+-
+-/**
+- * rtl8366_obtain_mc() - retrieve or allocate a VLAN member configuration
+- * @priv: the Realtek SMI device instance
+- * @vid: the VLAN ID to look up or allocate
+- * @vlanmc: the pointer will be assigned to a pointer to a valid member config
+- * if successful
+- * @return: index of a new member config or negative error number
+- */
+-static int rtl8366_obtain_mc(struct realtek_priv *priv, int vid,
+-			     struct rtl8366_vlan_mc *vlanmc)
+-{
+-	struct rtl8366_vlan_4k vlan4k;
+-	int ret;
+-	int i;
+-
+-	/* Try to find an existing member config entry for this VID */
+-	for (i = 0; i < priv->num_vlan_mc; i++) {
+-		ret = priv->ops->get_vlan_mc(priv, i, vlanmc);
+-		if (ret) {
+-			dev_err(priv->dev, "error searching for VLAN MC %d for VID %d\n",
+-				i, vid);
+-			return ret;
+-		}
+-
+-		if (vid == vlanmc->vid)
+-			return i;
+-	}
+-
+-	/* We have no MC entry for this VID, try to find an empty one */
+-	for (i = 0; i < priv->num_vlan_mc; i++) {
+-		ret = priv->ops->get_vlan_mc(priv, i, vlanmc);
+-		if (ret) {
+-			dev_err(priv->dev, "error searching for VLAN MC %d for VID %d\n",
+-				i, vid);
+-			return ret;
+-		}
+-
+-		if (vlanmc->vid == 0 && vlanmc->member == 0) {
+-			/* Update the entry from the 4K table */
+-			ret = priv->ops->get_vlan_4k(priv, vid, &vlan4k);
+-			if (ret) {
+-				dev_err(priv->dev, "error looking for 4K VLAN MC %d for VID %d\n",
+-					i, vid);
+-				return ret;
+-			}
+-
+-			vlanmc->vid = vid;
+-			vlanmc->member = vlan4k.member;
+-			vlanmc->untag = vlan4k.untag;
+-			vlanmc->fid = vlan4k.fid;
+-			ret = priv->ops->set_vlan_mc(priv, i, vlanmc);
+-			if (ret) {
+-				dev_err(priv->dev, "unable to set/update VLAN MC %d for VID %d\n",
+-					i, vid);
+-				return ret;
+-			}
+-
+-			dev_dbg(priv->dev, "created new MC at index %d for VID %d\n",
+-				i, vid);
+-			return i;
+-		}
+-	}
+-
+-	/* MC table is full, try to find an unused entry and replace it */
+-	for (i = 0; i < priv->num_vlan_mc; i++) {
+-		int used;
+-
+-		ret = rtl8366_mc_is_used(priv, i, &used);
+-		if (ret)
+-			return ret;
+-
+-		if (!used) {
+-			/* Update the entry from the 4K table */
+-			ret = priv->ops->get_vlan_4k(priv, vid, &vlan4k);
+-			if (ret)
+-				return ret;
+-
+-			vlanmc->vid = vid;
+-			vlanmc->member = vlan4k.member;
+-			vlanmc->untag = vlan4k.untag;
+-			vlanmc->fid = vlan4k.fid;
+-			ret = priv->ops->set_vlan_mc(priv, i, vlanmc);
+-			if (ret) {
+-				dev_err(priv->dev, "unable to set/update VLAN MC %d for VID %d\n",
+-					i, vid);
+-				return ret;
+-			}
+-			dev_dbg(priv->dev, "recycled MC at index %i for VID %d\n",
+-				i, vid);
+-			return i;
+-		}
+-	}
+-
+-	dev_err(priv->dev, "all VLAN member configurations are in use\n");
+-	return -ENOSPC;
+-}
+-
+-int rtl8366_set_vlan(struct realtek_priv *priv, int vid, u32 member,
+-		     u32 untag, u32 fid)
+-{
+-	struct rtl8366_vlan_mc vlanmc;
+-	struct rtl8366_vlan_4k vlan4k;
+-	int mc;
+-	int ret;
+-
+-	if (!priv->ops->is_vlan_valid(priv, vid))
+-		return -EINVAL;
+-
+-	dev_dbg(priv->dev,
+-		"setting VLAN%d 4k members: 0x%02x, untagged: 0x%02x\n",
+-		vid, member, untag);
+-
+-	/* Update the 4K table */
+-	ret = priv->ops->get_vlan_4k(priv, vid, &vlan4k);
+-	if (ret)
+-		return ret;
+-
+-	vlan4k.member |= member;
+-	vlan4k.untag |= untag;
+-	vlan4k.fid = fid;
+-	ret = priv->ops->set_vlan_4k(priv, &vlan4k);
+-	if (ret)
+-		return ret;
+-
+-	dev_dbg(priv->dev,
+-		"resulting VLAN%d 4k members: 0x%02x, untagged: 0x%02x\n",
+-		vid, vlan4k.member, vlan4k.untag);
+-
+-	/* Find or allocate a member config for this VID */
+-	ret = rtl8366_obtain_mc(priv, vid, &vlanmc);
+-	if (ret < 0)
+-		return ret;
+-	mc = ret;
+-
+-	/* Update the MC entry */
+-	vlanmc.member |= member;
+-	vlanmc.untag |= untag;
+-	vlanmc.fid = fid;
+-
+-	/* Commit updates to the MC entry */
+-	ret = priv->ops->set_vlan_mc(priv, mc, &vlanmc);
+-	if (ret)
+-		dev_err(priv->dev, "failed to commit changes to VLAN MC index %d for VID %d\n",
+-			mc, vid);
+-	else
+-		dev_dbg(priv->dev,
+-			"resulting VLAN%d MC members: 0x%02x, untagged: 0x%02x\n",
+-			vid, vlanmc.member, vlanmc.untag);
+-
+-	return ret;
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_set_vlan);
+-
+-int rtl8366_set_pvid(struct realtek_priv *priv, unsigned int port,
+-		     unsigned int vid)
+-{
+-	struct rtl8366_vlan_mc vlanmc;
+-	int mc;
+-	int ret;
+-
+-	if (!priv->ops->is_vlan_valid(priv, vid))
+-		return -EINVAL;
+-
+-	/* Find or allocate a member config for this VID */
+-	ret = rtl8366_obtain_mc(priv, vid, &vlanmc);
+-	if (ret < 0)
+-		return ret;
+-	mc = ret;
+-
+-	ret = priv->ops->set_mc_index(priv, port, mc);
+-	if (ret) {
+-		dev_err(priv->dev, "set PVID: failed to set MC index %d for port %d\n",
+-			mc, port);
+-		return ret;
+-	}
+-
+-	dev_dbg(priv->dev, "set PVID: the PVID for port %d set to %d using existing MC index %d\n",
+-		port, vid, mc);
+-
+-	return 0;
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_set_pvid);
+-
+-int rtl8366_enable_vlan4k(struct realtek_priv *priv, bool enable)
+-{
+-	int ret;
+-
+-	/* To enable 4k VLAN, ordinary VLAN must be enabled first,
+-	 * but if we disable 4k VLAN it is fine to leave ordinary
+-	 * VLAN enabled.
+-	 */
+-	if (enable) {
+-		/* Make sure VLAN is ON */
+-		ret = priv->ops->enable_vlan(priv, true);
+-		if (ret)
+-			return ret;
+-
+-		priv->vlan_enabled = true;
+-	}
+-
+-	ret = priv->ops->enable_vlan4k(priv, enable);
+-	if (ret)
+-		return ret;
+-
+-	priv->vlan4k_enabled = enable;
+-	return 0;
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_enable_vlan4k);
+-
+-int rtl8366_enable_vlan(struct realtek_priv *priv, bool enable)
+-{
+-	int ret;
+-
+-	ret = priv->ops->enable_vlan(priv, enable);
+-	if (ret)
+-		return ret;
+-
+-	priv->vlan_enabled = enable;
+-
+-	/* If we turn VLAN off, make sure that we turn off
+-	 * 4k VLAN as well, if that happened to be on.
+-	 */
+-	if (!enable) {
+-		priv->vlan4k_enabled = false;
+-		ret = priv->ops->enable_vlan4k(priv, false);
+-	}
+-
+-	return ret;
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_enable_vlan);
+-
+-int rtl8366_reset_vlan(struct realtek_priv *priv)
+-{
+-	struct rtl8366_vlan_mc vlanmc;
+-	int ret;
+-	int i;
+-
+-	rtl8366_enable_vlan(priv, false);
+-	rtl8366_enable_vlan4k(priv, false);
+-
+-	/* Clear the 16 VLAN member configurations */
+-	vlanmc.vid = 0;
+-	vlanmc.priority = 0;
+-	vlanmc.member = 0;
+-	vlanmc.untag = 0;
+-	vlanmc.fid = 0;
+-	for (i = 0; i < priv->num_vlan_mc; i++) {
+-		ret = priv->ops->set_vlan_mc(priv, i, &vlanmc);
+-		if (ret)
+-			return ret;
+-	}
+-
+-	return 0;
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_reset_vlan);
+-
+-int rtl8366_vlan_add(struct dsa_switch *ds, int port,
+-		     const struct switchdev_obj_port_vlan *vlan,
+-		     struct netlink_ext_ack *extack)
+-{
+-	bool untagged = !!(vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED);
+-	bool pvid = !!(vlan->flags & BRIDGE_VLAN_INFO_PVID);
+-	struct realtek_priv *priv = ds->priv;
+-	u32 member = 0;
+-	u32 untag = 0;
+-	int ret;
+-
+-	if (!priv->ops->is_vlan_valid(priv, vlan->vid)) {
+-		NL_SET_ERR_MSG_MOD(extack, "VLAN ID not valid");
+-		return -EINVAL;
+-	}
+-
+-	/* Enable VLAN in the hardware
+-	 * FIXME: what's with this 4k business?
+-	 * Just rtl8366_enable_vlan() seems inconclusive.
+-	 */
+-	ret = rtl8366_enable_vlan4k(priv, true);
+-	if (ret) {
+-		NL_SET_ERR_MSG_MOD(extack, "Failed to enable VLAN 4K");
+-		return ret;
+-	}
+-
+-	dev_dbg(priv->dev, "add VLAN %d on port %d, %s, %s\n",
+-		vlan->vid, port, untagged ? "untagged" : "tagged",
+-		pvid ? "PVID" : "no PVID");
+-
+-	member |= BIT(port);
+-
+-	if (untagged)
+-		untag |= BIT(port);
+-
+-	ret = rtl8366_set_vlan(priv, vlan->vid, member, untag, 0);
+-	if (ret) {
+-		dev_err(priv->dev, "failed to set up VLAN %04x", vlan->vid);
+-		return ret;
+-	}
+-
+-	if (!pvid)
+-		return 0;
+-
+-	ret = rtl8366_set_pvid(priv, port, vlan->vid);
+-	if (ret) {
+-		dev_err(priv->dev, "failed to set PVID on port %d to VLAN %04x",
+-			port, vlan->vid);
+-		return ret;
+-	}
+-
+-	return 0;
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_vlan_add);
+-
+-int rtl8366_vlan_del(struct dsa_switch *ds, int port,
+-		     const struct switchdev_obj_port_vlan *vlan)
+-{
+-	struct realtek_priv *priv = ds->priv;
+-	int ret, i;
+-
+-	dev_dbg(priv->dev, "del VLAN %d on port %d\n", vlan->vid, port);
+-
+-	for (i = 0; i < priv->num_vlan_mc; i++) {
+-		struct rtl8366_vlan_mc vlanmc;
+-
+-		ret = priv->ops->get_vlan_mc(priv, i, &vlanmc);
+-		if (ret)
+-			return ret;
+-
+-		if (vlan->vid == vlanmc.vid) {
+-			/* Remove this port from the VLAN */
+-			vlanmc.member &= ~BIT(port);
+-			vlanmc.untag &= ~BIT(port);
+-			/*
+-			 * If no ports are members of this VLAN
+-			 * anymore then clear the whole member
+-			 * config so it can be reused.
+-			 */
+-			if (!vlanmc.member) {
+-				vlanmc.vid = 0;
+-				vlanmc.priority = 0;
+-				vlanmc.fid = 0;
+-			}
+-			ret = priv->ops->set_vlan_mc(priv, i, &vlanmc);
+-			if (ret) {
+-				dev_err(priv->dev,
+-					"failed to remove VLAN %04x\n",
+-					vlan->vid);
+-				return ret;
+-			}
+-			break;
+-		}
+-	}
+-
+-	return 0;
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_vlan_del);
+-
+-void rtl8366_get_strings(struct dsa_switch *ds, int port, u32 stringset,
+-			 uint8_t *data)
+-{
+-	struct realtek_priv *priv = ds->priv;
+-	struct rtl8366_mib_counter *mib;
+-	int i;
+-
+-	if (port >= priv->num_ports)
+-		return;
+-
+-	for (i = 0; i < priv->num_mib_counters; i++) {
+-		mib = &priv->mib_counters[i];
+-		strncpy(data + i * ETH_GSTRING_LEN,
+-			mib->name, ETH_GSTRING_LEN);
+-	}
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_get_strings);
+-
+-int rtl8366_get_sset_count(struct dsa_switch *ds, int port, int sset)
+-{
+-	struct realtek_priv *priv = ds->priv;
+-
+-	/* We only support SS_STATS */
+-	if (sset != ETH_SS_STATS)
+-		return 0;
+-	if (port >= priv->num_ports)
+-		return -EINVAL;
+-
+-	return priv->num_mib_counters;
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_get_sset_count);
+-
+-void rtl8366_get_ethtool_stats(struct dsa_switch *ds, int port, uint64_t *data)
+-{
+-	struct realtek_priv *priv = ds->priv;
+-	int i;
+-	int ret;
+-
+-	if (port >= priv->num_ports)
+-		return;
+-
+-	for (i = 0; i < priv->num_mib_counters; i++) {
+-		struct rtl8366_mib_counter *mib;
+-		u64 mibvalue = 0;
+-
+-		mib = &priv->mib_counters[i];
+-		ret = priv->ops->get_mib_counter(priv, port, mib, &mibvalue);
+-		if (ret) {
+-			dev_err(priv->dev, "error reading MIB counter %s\n",
+-				mib->name);
+-		}
+-		data[i] = mibvalue;
+-	}
+-}
+-EXPORT_SYMBOL_GPL(rtl8366_get_ethtool_stats);
+--- a/drivers/net/dsa/realtek/rtl8366rb.c
++++ b/drivers/net/dsa/realtek/rtl8366rb.c
+@@ -1815,3 +1815,7 @@ const struct realtek_variant rtl8366rb_v
+ 	.chip_data_sz = sizeof(struct rtl8366rb),
+ };
+ EXPORT_SYMBOL_GPL(rtl8366rb_variant);
++
++MODULE_AUTHOR("Linus Walleij <linus.walleij@linaro.org>");
++MODULE_DESCRIPTION("Driver for RTL8366RB ethernet switch");
++MODULE_LICENSE("GPL");

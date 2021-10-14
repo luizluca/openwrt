@@ -1,0 +1,87 @@
+From 29e267c2ab90adef0afee042f9880f2fea4dc775 Mon Sep 17 00:00:00 2001
+From: "Russell King (Oracle)" <rmk+kernel@armlinux.org.uk>
+Date: Wed, 2 Feb 2022 16:29:25 +0000
+Subject: [PATCH v5.18 27/27] net: dsa: realtek: convert to
+ phylink_generic_validate()
+
+Populate the supported interfaces and MAC capabilities for the Realtek
+rtl8365 DSA switch and remove the old validate implementation to allow
+DSA to use phylink_generic_validate() for this switch driver.
+
+Signed-off-by: Russell King (Oracle) <rmk+kernel@armlinux.org.uk>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+(cherry picked from commit 6ff6064605e96db40c7e95c4924518028cd827bf)
+---
+ drivers/net/dsa/realtek/rtl8365mb.c | 46 ++++++++---------------------
+ 1 file changed, 12 insertions(+), 34 deletions(-)
+
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -976,39 +976,17 @@ static bool rtl8365mb_phy_mode_supported
+ 	return false;
+ }
+ 
+-static void rtl8365mb_phylink_validate(struct dsa_switch *ds, int port,
+-				       unsigned long *supported,
+-				       struct phylink_link_state *state)
++static void rtl8365mb_phylink_get_caps(struct dsa_switch *ds, int port,
++				       struct phylink_config *config)
+ {
+-	struct realtek_priv *priv = ds->priv;
+-	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0 };
+-
+-	/* include/linux/phylink.h says:
+-	 *     When @state->interface is %PHY_INTERFACE_MODE_NA, phylink
+-	 *     expects the MAC driver to return all supported link modes.
+-	 */
+-	if (state->interface != PHY_INTERFACE_MODE_NA &&
+-	    !rtl8365mb_phy_mode_supported(ds, port, state->interface)) {
+-		dev_err(priv->dev, "phy mode %s is unsupported on port %d\n",
+-			phy_modes(state->interface), port);
+-		linkmode_zero(supported);
+-		return;
+-	}
+-
+-	phylink_set_port_modes(mask);
+-
+-	phylink_set(mask, Autoneg);
+-	phylink_set(mask, Pause);
+-	phylink_set(mask, Asym_Pause);
+-
+-	phylink_set(mask, 10baseT_Half);
+-	phylink_set(mask, 10baseT_Full);
+-	phylink_set(mask, 100baseT_Half);
+-	phylink_set(mask, 100baseT_Full);
+-	phylink_set(mask, 1000baseT_Full);
+-
+-	linkmode_and(supported, supported, mask);
+-	linkmode_and(state->advertising, state->advertising, mask);
++	if (dsa_is_user_port(ds, port))
++		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
++			  config->supported_interfaces);
++	else if (dsa_is_cpu_port(ds, port))
++		phy_interface_set_rgmii(config->supported_interfaces);
++
++	config->mac_capabilities = MAC_SYM_PAUSE | MAC_ASYM_PAUSE |
++				   MAC_10 | MAC_100 | MAC_1000FD;
+ }
+ 
+ static void rtl8365mb_phylink_mac_config(struct dsa_switch *ds, int port,
+@@ -2078,7 +2056,7 @@ static const struct dsa_switch_ops rtl83
+ 	.change_tag_protocol = rtl8365mb_change_tag_protocol,
+ 	.setup = rtl8365mb_setup,
+ 	.teardown = rtl8365mb_teardown,
+-	.phylink_validate = rtl8365mb_phylink_validate,
++	.phylink_get_caps = rtl8365mb_phylink_get_caps,
+ 	.phylink_mac_config = rtl8365mb_phylink_mac_config,
+ 	.phylink_mac_link_down = rtl8365mb_phylink_mac_link_down,
+ 	.phylink_mac_link_up = rtl8365mb_phylink_mac_link_up,
+@@ -2097,7 +2075,7 @@ static const struct dsa_switch_ops rtl83
+ 	.change_tag_protocol = rtl8365mb_change_tag_protocol,
+ 	.setup = rtl8365mb_setup,
+ 	.teardown = rtl8365mb_teardown,
+-	.phylink_validate = rtl8365mb_phylink_validate,
++	.phylink_get_caps = rtl8365mb_phylink_get_caps,
+ 	.phylink_mac_config = rtl8365mb_phylink_mac_config,
+ 	.phylink_mac_link_down = rtl8365mb_phylink_mac_link_down,
+ 	.phylink_mac_link_up = rtl8365mb_phylink_mac_link_up,

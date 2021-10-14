@@ -1,0 +1,69 @@
+From e3ffae32099c5b5a01243f5c382ed3fbd6de456a Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Thu, 16 Jun 2022 00:51:12 +0200
+Subject: [PATCH v6.0 2/5] net: dsa: realtek: rtl8365mb: remove port_mask
+ private data member
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+There is no real need for this variable: the line change interrupt mask
+is sufficiently masked out when getting linkup_ind and linkdown_ind in
+the interrupt handler.
+
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+(cherry picked from commit b325159d00442b9bd8ed30095a30ba31c5e8788e)
+---
+ drivers/net/dsa/realtek/rtl8365mb.c | 8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -564,7 +564,6 @@ struct rtl8365mb_port {
+  * @irq: registered IRQ or zero
+  * @chip_id: chip identifier
+  * @chip_ver: chip silicon revision
+- * @port_mask: mask of all ports
+  * @learn_limit_max: maximum number of L2 addresses the chip can learn
+  * @cpu: CPU tagging and CPU port configuration for this chip
+  * @mib_lock: prevent concurrent reads of MIB counters
+@@ -579,7 +578,6 @@ struct rtl8365mb {
+ 	int irq;
+ 	u32 chip_id;
+ 	u32 chip_ver;
+-	u32 port_mask;
+ 	u32 learn_limit_max;
+ 	struct rtl8365mb_cpu cpu;
+ 	struct mutex mib_lock;
+@@ -1489,13 +1487,10 @@ static irqreturn_t rtl8365mb_irq(int irq
+ {
+ 	struct realtek_priv *priv = data;
+ 	unsigned long line_changes = 0;
+-	struct rtl8365mb *mb;
+ 	u32 stat;
+ 	int line;
+ 	int ret;
+ 
+-	mb = priv->chip_data;
+-
+ 	ret = rtl8365mb_get_and_clear_status_reg(priv, RTL8365MB_INTR_STATUS_REG,
+ 						 &stat);
+ 	if (ret)
+@@ -1520,7 +1515,7 @@ static irqreturn_t rtl8365mb_irq(int irq
+ 
+ 		linkdown_ind = FIELD_GET(RTL8365MB_PORT_LINKDOWN_IND_MASK, val);
+ 
+-		line_changes = (linkup_ind | linkdown_ind) & mb->port_mask;
++		line_changes = linkup_ind | linkdown_ind;
+ 	}
+ 
+ 	if (!line_changes)
+@@ -2009,7 +2004,6 @@ static int rtl8365mb_detect(struct realt
+ 		mb->priv = priv;
+ 		mb->chip_id = chip_id;
+ 		mb->chip_ver = chip_ver;
+-		mb->port_mask = GENMASK(priv->num_ports - 1, 0);
+ 		mb->learn_limit_max = RTL8365MB_LEARN_LIMIT_MAX;
+ 		mb->jam_table = rtl8365mb_init_jam_8365mb_vc;
+ 		mb->jam_size = ARRAY_SIZE(rtl8365mb_init_jam_8365mb_vc);

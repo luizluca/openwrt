@@ -1,0 +1,55 @@
+From 3cfa35d0a7a973e5649c74867c9229184dda43d2 Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Fri, 4 Feb 2022 07:59:27 -0800
+Subject: [PATCH v5.18 14/27] net: dsa: realtek: don't default Kconfigs to y
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+We generally default the vendor to y and the drivers itself
+to n. NET_DSA_REALTEK, however, selects a whole bunch of things,
+so it's not a pure "vendor selection" knob. Let's default it all
+to n.
+
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Acked-by: Arınç ÜNAL <arinc.unal@arinc9.com>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/realtek/Kconfig | 4 ----
+ 1 file changed, 4 deletions(-)
+
+--- a/drivers/net/dsa/realtek/Kconfig
++++ b/drivers/net/dsa/realtek/Kconfig
+@@ -12,7 +12,6 @@ menuconfig NET_DSA_REALTEK
+ config NET_DSA_REALTEK_MDIO
+ 	tristate "Realtek MDIO connected switch driver"
+ 	depends on NET_DSA_REALTEK
+-	default y
+ 	help
+ 	  Select to enable support for registering switches configured
+ 	  through MDIO.
+@@ -20,14 +19,12 @@ config NET_DSA_REALTEK_MDIO
+ config NET_DSA_REALTEK_SMI
+ 	tristate "Realtek SMI connected switch driver"
+ 	depends on NET_DSA_REALTEK
+-	default y
+ 	help
+ 	  Select to enable support for registering switches connected
+ 	  through SMI.
+ 
+ config NET_DSA_REALTEK_RTL8365MB
+ 	tristate "Realtek RTL8365MB switch subdriver"
+-	default y
+ 	depends on NET_DSA_REALTEK
+ 	depends on NET_DSA_REALTEK_SMI || NET_DSA_REALTEK_MDIO
+ 	select NET_DSA_TAG_RTL8_4
+@@ -36,7 +33,6 @@ config NET_DSA_REALTEK_RTL8365MB
+ 
+ config NET_DSA_REALTEK_RTL8366RB
+ 	tristate "Realtek RTL8366RB switch subdriver"
+-	default y
+ 	depends on NET_DSA_REALTEK
+ 	depends on NET_DSA_REALTEK_SMI || NET_DSA_REALTEK_MDIO
+ 	select NET_DSA_TAG_RTL4_A

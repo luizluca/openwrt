@@ -1,0 +1,44 @@
+From 878e0832742185101ae9da5a799a5ade5dc97009 Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Wed, 15 Dec 2021 00:41:28 -0300
+Subject: [PATCH v5.17 5/7] net: dsa: rtl8365mb: add GMII as user port mode
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Recent net-next fails to initialize ports with:
+
+ realtek-smi switch: phy mode gmii is unsupported on port 0
+ realtek-smi switch lan5 (uninitialized): validation of gmii with
+ support 0000000,00000000,000062ef and advertisement
+ 0000000,00000000,000062ef failed: -22
+ realtek-smi switch lan5 (uninitialized): failed to connect to PHY:
+ -EINVAL
+ realtek-smi switch lan5 (uninitialized): error -22 setting up PHY
+ for tree 1, switch 0, port 0
+
+Current net branch(3dd7d40b43663f58d11ee7a3d3798813b26a48f1) is not
+affected.
+
+I also noticed the same issue before with older versions but using
+a MDIO interface driver, not realtek-smi.
+
+Tested-by: Arınç ÜNAL <arinc.unal@arinc9.com>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/rtl8365mb.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+--- a/drivers/net/dsa/rtl8365mb.c
++++ b/drivers/net/dsa/rtl8365mb.c
+@@ -900,7 +900,8 @@ static bool rtl8365mb_phy_mode_supported
+ {
+ 	if (dsa_is_user_port(ds, port) &&
+ 	    (interface == PHY_INTERFACE_MODE_NA ||
+-	     interface == PHY_INTERFACE_MODE_INTERNAL))
++	     interface == PHY_INTERFACE_MODE_INTERNAL ||
++	     interface == PHY_INTERFACE_MODE_GMII))
+ 		/* Internal PHY */
+ 		return true;
+ 	else if (dsa_is_cpu_port(ds, port) &&

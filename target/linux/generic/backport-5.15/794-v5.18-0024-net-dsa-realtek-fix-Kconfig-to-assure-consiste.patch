@@ -1,0 +1,118 @@
+From a405fccfa877532772d0035c0e22889c3c14990c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Tue, 12 Apr 2022 17:55:27 +0200
+Subject: [PATCH v5.18 24/27] net: dsa: realtek: fix Kconfig to assure
+ consistent driver linkage
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The kernel test robot reported a build failure:
+
+or1k-linux-ld: drivers/net/dsa/realtek/realtek-smi.o:(.rodata+0x16c): undefined reference to `rtl8366rb_variant'
+
+... with the following build configuration:
+
+CONFIG_NET_DSA_REALTEK=y
+CONFIG_NET_DSA_REALTEK_SMI=y
+CONFIG_NET_DSA_REALTEK_RTL8365MB=y
+CONFIG_NET_DSA_REALTEK_RTL8366RB=m
+
+The problem here is that the realtek-smi interface driver gets built-in,
+while the rtl8366rb switch subdriver gets built as a module, hence the
+symbol rtl8366rb_variant is not reachable when defining the OF device
+table in the interface driver.
+
+The Kconfig dependencies don't help in this scenario because they just
+say that the subdriver(s) depend on at least one interface driver. In
+fact, the subdrivers don't depend on the interface drivers at all, and
+can even be built even in their absence. Somewhat strangely, the
+interface drivers can also be built in the absence of any subdriver,
+BUT, if a subdriver IS enabled, then it must be reachable according to
+the linkage of the interface driver: effectively what the IS_REACHABLE()
+macro achieves. If it is not reachable, the above kind of linker error
+will be observed.
+
+Rather than papering over the above build error by simply using
+IS_REACHABLE(), we can do a little better and admit that it is actually
+the interface drivers that have a dependency on the subdrivers. So this
+patch does exactly that. Specifically, we ensure that:
+
+1. The interface drivers' Kconfig symbols must have a value no greater
+   than the value of any subdriver Kconfig symbols.
+
+2. The subdrivers should by default enable both interface drivers, since
+   most users probably want at least one of them; those interface
+   drivers can be explicitly disabled however.
+
+What this doesn't do is prevent a user from building only a subdriver,
+without any interface driver. To that end, add an additional line of
+help in the menu to guide users in the right direction.
+
+Link: https://lore.kernel.org/all/202204110757.XIafvVnj-lkp@intel.com/
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: aac94001067d ("net: dsa: realtek: add new mdio interface for drivers")
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/realtek/Kconfig | 30 +++++++++++++++++++++---------
+ 1 file changed, 21 insertions(+), 9 deletions(-)
+
+--- a/drivers/net/dsa/realtek/Kconfig
++++ b/drivers/net/dsa/realtek/Kconfig
+@@ -9,34 +9,46 @@ menuconfig NET_DSA_REALTEK
+ 	help
+ 	  Select to enable support for Realtek Ethernet switch chips.
+ 
++	  Note that at least one interface driver must be enabled for the
++	  subdrivers to be loaded. Moreover, an interface driver cannot achieve
++	  anything without at least one subdriver enabled.
++
++if NET_DSA_REALTEK
++
+ config NET_DSA_REALTEK_MDIO
+-	tristate "Realtek MDIO connected switch driver"
+-	depends on NET_DSA_REALTEK
++	tristate "Realtek MDIO interface driver"
+ 	depends on OF
++	depends on NET_DSA_REALTEK_RTL8365MB || NET_DSA_REALTEK_RTL8366RB
++	depends on NET_DSA_REALTEK_RTL8365MB || !NET_DSA_REALTEK_RTL8365MB
++	depends on NET_DSA_REALTEK_RTL8366RB || !NET_DSA_REALTEK_RTL8366RB
+ 	help
+ 	  Select to enable support for registering switches configured
+ 	  through MDIO.
+ 
+ config NET_DSA_REALTEK_SMI
+-	tristate "Realtek SMI connected switch driver"
+-	depends on NET_DSA_REALTEK
++	tristate "Realtek SMI interface driver"
+ 	depends on OF
++	depends on NET_DSA_REALTEK_RTL8365MB || NET_DSA_REALTEK_RTL8366RB
++	depends on NET_DSA_REALTEK_RTL8365MB || !NET_DSA_REALTEK_RTL8365MB
++	depends on NET_DSA_REALTEK_RTL8366RB || !NET_DSA_REALTEK_RTL8366RB
+ 	help
+ 	  Select to enable support for registering switches connected
+ 	  through SMI.
+ 
+ config NET_DSA_REALTEK_RTL8365MB
+ 	tristate "Realtek RTL8365MB switch subdriver"
+-	depends on NET_DSA_REALTEK
+-	depends on NET_DSA_REALTEK_SMI || NET_DSA_REALTEK_MDIO
++	imply NET_DSA_REALTEK_SMI
++	imply NET_DSA_REALTEK_MDIO
+ 	select NET_DSA_TAG_RTL8_4
+ 	help
+ 	  Select to enable support for Realtek RTL8365MB-VC and RTL8367S.
+ 
+ config NET_DSA_REALTEK_RTL8366RB
+ 	tristate "Realtek RTL8366RB switch subdriver"
+-	depends on NET_DSA_REALTEK
+-	depends on NET_DSA_REALTEK_SMI || NET_DSA_REALTEK_MDIO
++	imply NET_DSA_REALTEK_SMI
++	imply NET_DSA_REALTEK_MDIO
+ 	select NET_DSA_TAG_RTL4_A
+ 	help
+-	  Select to enable support for Realtek RTL8366RB
++	  Select to enable support for Realtek RTL8366RB.
++
++endif

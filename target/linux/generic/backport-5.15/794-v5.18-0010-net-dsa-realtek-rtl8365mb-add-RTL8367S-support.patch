@@ -1,0 +1,132 @@
+From 50b3bb95eaa51165e3327359728153cb58b7b275 Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Fri, 28 Jan 2022 03:05:06 -0300
+Subject: [PATCH v5.18 10/27] net: dsa: realtek: rtl8365mb: add RTL8367S
+ support
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Realtek's RTL8367S, a 5+2 port 10/100/1000M Ethernet switch.
+It shares the same driver family (RTL8367C) with other models
+as the RTL8365MB-VC. Its compatible string is "realtek,rtl8367s".
+
+It was tested only with MDIO interface (realtek-mdio), although it might
+work out-of-the-box with SMI interface (using realtek-smi).
+
+This patch was based on an unpublished patch from Alvin Šipraga
+<alsi@bang-olufsen.dk>.
+
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Tested-by: Arınç ÜNAL <arinc.unal@arinc9.com>
+Reviewed-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/realtek/Kconfig        |  2 +-
+ drivers/net/dsa/realtek/realtek-mdio.c |  1 +
+ drivers/net/dsa/realtek/realtek-smi.c  |  4 +++
+ drivers/net/dsa/realtek/rtl8365mb.c    | 42 +++++++++++++++++++-------
+ 4 files changed, 37 insertions(+), 12 deletions(-)
+
+--- a/drivers/net/dsa/realtek/Kconfig
++++ b/drivers/net/dsa/realtek/Kconfig
+@@ -32,7 +32,7 @@ config NET_DSA_REALTEK_RTL8365MB
+ 	depends on NET_DSA_REALTEK_SMI || NET_DSA_REALTEK_MDIO
+ 	select NET_DSA_TAG_RTL8_4
+ 	help
+-	  Select to enable support for Realtek RTL8365MB
++	  Select to enable support for Realtek RTL8365MB-VC and RTL8367S.
+ 
+ config NET_DSA_REALTEK_RTL8366RB
+ 	tristate "Realtek RTL8366RB switch subdriver"
+--- a/drivers/net/dsa/realtek/realtek-mdio.c
++++ b/drivers/net/dsa/realtek/realtek-mdio.c
+@@ -206,6 +206,7 @@ static const struct of_device_id realtek
+ #endif
+ #if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8365MB)
+ 	{ .compatible = "realtek,rtl8365mb", .data = &rtl8365mb_variant, },
++	{ .compatible = "realtek,rtl8367s", .data = &rtl8365mb_variant, },
+ #endif
+ 	{ /* sentinel */ },
+ };
+--- a/drivers/net/dsa/realtek/realtek-smi.c
++++ b/drivers/net/dsa/realtek/realtek-smi.c
+@@ -510,6 +510,10 @@ static const struct of_device_id realtek
+ 		.compatible = "realtek,rtl8365mb",
+ 		.data = &rtl8365mb_variant,
+ 	},
++	{
++		.compatible = "realtek,rtl8367s",
++		.data = &rtl8365mb_variant,
++	},
+ #endif
+ 	{ /* sentinel */ },
+ };
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -102,15 +102,22 @@
+ #include "realtek.h"
+ 
+ /* Chip-specific data and limits */
+-#define RTL8365MB_CHIP_ID_8365MB_VC		0x6367
+-#define RTL8365MB_LEARN_LIMIT_MAX_8365MB_VC	2112
+-static const int rtl8365mb_extint_port_map[] = { -1, -1, -1, -1, -1, -1, 1 };
++#define RTL8365MB_CHIP_ID_8365MB_VC	0x6367
++#define RTL8365MB_CHIP_VER_8365MB_VC	0x0040
++
++#define RTL8365MB_CHIP_ID_8367S		0x6367
++#define RTL8365MB_CHIP_VER_8367S	0x00A0
+ 
+ /* Family-specific data and limits */
+-#define RTL8365MB_PHYADDRMAX	7
+-#define RTL8365MB_NUM_PHYREGS	32
+-#define RTL8365MB_PHYREGMAX	(RTL8365MB_NUM_PHYREGS - 1)
+-#define RTL8365MB_MAX_NUM_PORTS  7
++#define RTL8365MB_PHYADDRMAX		7
++#define RTL8365MB_NUM_PHYREGS		32
++#define RTL8365MB_PHYREGMAX		(RTL8365MB_NUM_PHYREGS - 1)
++/* RTL8370MB and RTL8310SR, possibly suportable by this driver, have 10 ports */
++#define RTL8365MB_MAX_NUM_PORTS		10
++#define RTL8365MB_LEARN_LIMIT_MAX	2112
++
++/* valid for all 6-port or less variants */
++static const int rtl8365mb_extint_port_map[]  = { -1, -1, -1, -1, -1, -1, 1, 2, -1, -1};
+ 
+ /* Chip identification registers */
+ #define RTL8365MB_CHIP_ID_REG		0x1300
+@@ -1966,9 +1973,22 @@ static int rtl8365mb_detect(struct realt
+ 
+ 	switch (chip_id) {
+ 	case RTL8365MB_CHIP_ID_8365MB_VC:
+-		dev_info(priv->dev,
+-			 "found an RTL8365MB-VC switch (ver=0x%04x)\n",
+-			 chip_ver);
++		switch (chip_ver) {
++		case RTL8365MB_CHIP_VER_8365MB_VC:
++			dev_info(priv->dev,
++				 "found an RTL8365MB-VC switch (ver=0x%04x)\n",
++				 chip_ver);
++			break;
++		case RTL8365MB_CHIP_VER_8367S:
++			dev_info(priv->dev,
++				 "found an RTL8367S switch (ver=0x%04x)\n",
++				 chip_ver);
++			break;
++		default:
++			dev_err(priv->dev, "unrecognized switch version (ver=0x%04x)",
++				chip_ver);
++			return -ENODEV;
++		}
+ 
+ 		priv->num_ports = RTL8365MB_MAX_NUM_PORTS;
+ 
+@@ -1976,7 +1996,7 @@ static int rtl8365mb_detect(struct realt
+ 		mb->chip_id = chip_id;
+ 		mb->chip_ver = chip_ver;
+ 		mb->port_mask = GENMASK(priv->num_ports - 1, 0);
+-		mb->learn_limit_max = RTL8365MB_LEARN_LIMIT_MAX_8365MB_VC;
++		mb->learn_limit_max = RTL8365MB_LEARN_LIMIT_MAX;
+ 		mb->jam_table = rtl8365mb_init_jam_8365mb_vc;
+ 		mb->jam_size = ARRAY_SIZE(rtl8365mb_init_jam_8365mb_vc);
+ 

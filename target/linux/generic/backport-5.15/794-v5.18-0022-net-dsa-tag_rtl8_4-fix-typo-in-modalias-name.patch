@@ -1,0 +1,32 @@
+From ed9535e1db2faff2552a9bae066f770af3c63ce0 Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Wed, 9 Mar 2022 14:56:42 -0300
+Subject: [PATCH v5.18 22/27] net: dsa: tag_rtl8_4: fix typo in modalias name
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+DSA_TAG_PROTO_RTL8_4L is not defined. It should be
+DSA_TAG_PROTO_RTL8_4T.
+
+Fixes: cd87fecdedd7 ("net: dsa: tag_rtl8_4: add rtl8_4t trailing variant")
+Reported-by: Arınç ÜNAL <arinc.unal@arinc9.com>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Link: https://lore.kernel.org/r/20220309175641.12943-1-luizluca@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/dsa/tag_rtl8_4.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/net/dsa/tag_rtl8_4.c
++++ b/net/dsa/tag_rtl8_4.c
+@@ -247,7 +247,7 @@ static const struct dsa_device_ops rtl8_
+ 
+ DSA_TAG_DRIVER(rtl8_4t_netdev_ops);
+ 
+-MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_RTL8_4L);
++MODULE_ALIAS_DSA_TAG_DRIVER(DSA_TAG_PROTO_RTL8_4T);
+ 
+ static struct dsa_tag_driver *dsa_tag_drivers[] = {
+ 	&DSA_TAG_DRIVER_NAME(rtl8_4_netdev_ops),

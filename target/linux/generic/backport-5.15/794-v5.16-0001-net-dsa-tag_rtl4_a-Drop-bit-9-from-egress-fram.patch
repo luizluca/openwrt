@@ -1,0 +1,36 @@
+From ed8be280cb999d26381436f69c68600e9b30a3e6 Mon Sep 17 00:00:00 2001
+From: Linus Walleij <linus.walleij@linaro.org>
+Date: Mon, 13 Sep 2021 16:31:56 +0200
+Subject: [PATCH v5.16 01/18] net: dsa: tag_rtl4_a: Drop bit 9 from egress
+ frames
+
+This drops the code setting bit 9 on egress frames on the
+Realtek "type A" (RTL8366RB) frames.
+
+This bit was set on ingress frames for unknown reason,
+and was set on egress frames as the format of ingress
+and egress frames was believed to be the same. As that
+assumption turned out to be false, and since this bit
+seems to have zero effect on the behaviour of the switch
+let's drop this bit entirely.
+
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Link: https://lore.kernel.org/r/20210913143156.1264570-1-linus.walleij@linaro.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/dsa/tag_rtl4_a.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/net/dsa/tag_rtl4_a.c
++++ b/net/dsa/tag_rtl4_a.c
+@@ -54,7 +54,7 @@ static struct sk_buff *rtl4a_tag_xmit(st
+ 	p = (__be16 *)tag;
+ 	*p = htons(RTL4_A_ETHERTYPE);
+ 
+-	out = (RTL4_A_PROTOCOL_RTL8366RB << RTL4_A_PROTOCOL_SHIFT) | (2 << 8);
++	out = (RTL4_A_PROTOCOL_RTL8366RB << RTL4_A_PROTOCOL_SHIFT);
+ 	/* The lower bits indicate the port number */
+ 	out |= BIT(dp->index);
+ 

@@ -1,0 +1,45 @@
+From 251775a84a9b8c0cc2946247782de78807f6af0e Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Wed, 23 Mar 2022 13:42:25 +0100
+Subject: [PATCH v5.18 23/27] net: dsa: realtek: make interface drivers depend
+ on OF
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The kernel test robot reported build warnings with a randconfig that
+built realtek-{smi,mdio} without CONFIG_OF set. Since both interface
+drivers are using OF and will not probe without, add the corresponding
+dependency to Kconfig.
+
+Link: https://lore.kernel.org/all/202203231233.Xx73Y40o-lkp@intel.com/
+Link: https://lore.kernel.org/all/202203231439.ycl0jg50-lkp@intel.com/
+Fixes: aac94001067d ("net: dsa: realtek: add new mdio interface for drivers")
+Fixes: 765c39a4fafe ("net: dsa: realtek: convert subdrivers into modules")
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Acked-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Link: https://lore.kernel.org/r/20220323124225.91763-1-alvin@pqrs.dk
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/dsa/realtek/Kconfig | 2 ++
+ 1 file changed, 2 insertions(+)
+
+--- a/drivers/net/dsa/realtek/Kconfig
++++ b/drivers/net/dsa/realtek/Kconfig
+@@ -12,6 +12,7 @@ menuconfig NET_DSA_REALTEK
+ config NET_DSA_REALTEK_MDIO
+ 	tristate "Realtek MDIO connected switch driver"
+ 	depends on NET_DSA_REALTEK
++	depends on OF
+ 	help
+ 	  Select to enable support for registering switches configured
+ 	  through MDIO.
+@@ -19,6 +20,7 @@ config NET_DSA_REALTEK_MDIO
+ config NET_DSA_REALTEK_SMI
+ 	tristate "Realtek SMI connected switch driver"
+ 	depends on NET_DSA_REALTEK
++	depends on OF
+ 	help
+ 	  Select to enable support for registering switches connected
+ 	  through SMI.

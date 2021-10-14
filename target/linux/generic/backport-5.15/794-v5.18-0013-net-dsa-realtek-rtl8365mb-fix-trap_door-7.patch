@@ -1,0 +1,31 @@
+From ed59743097cb67489e215419f0a0cdbfda1663e7 Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Fri, 28 Jan 2022 03:05:09 -0300
+Subject: [PATCH v5.18 13/27] net: dsa: realtek: rtl8365mb: fix trap_door > 7
+
+Trap door number is a 4-bit number divided in two regions (3 and 1-bit).
+Both values were not masked properly. This bug does not affect supported
+devices as they use up to port 7 (ext2). It would only be a problem if
+the driver becomes compatible with 10-port switches like RTL8370MB and
+RTL8310SR.
+
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/realtek/rtl8365mb.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -1764,9 +1764,9 @@ static int rtl8365mb_cpu_config(struct r
+ 	      FIELD_PREP(RTL8365MB_CPU_CTRL_TAG_POSITION_MASK, cpu->position) |
+ 	      FIELD_PREP(RTL8365MB_CPU_CTRL_RXBYTECOUNT_MASK, cpu->rx_length) |
+ 	      FIELD_PREP(RTL8365MB_CPU_CTRL_TAG_FORMAT_MASK, cpu->format) |
+-	      FIELD_PREP(RTL8365MB_CPU_CTRL_TRAP_PORT_MASK, cpu->trap_port) |
++	      FIELD_PREP(RTL8365MB_CPU_CTRL_TRAP_PORT_MASK, cpu->trap_port & 0x7) |
+ 	      FIELD_PREP(RTL8365MB_CPU_CTRL_TRAP_PORT_EXT_MASK,
+-			 cpu->trap_port >> 3);
++			 cpu->trap_port >> 3 & 0x1);
+ 	ret = regmap_write(priv->map, RTL8365MB_CPU_CTRL_REG, val);
+ 	if (ret)
+ 		return ret;

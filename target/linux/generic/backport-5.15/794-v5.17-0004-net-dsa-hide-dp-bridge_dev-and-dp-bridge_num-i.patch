@@ -1,0 +1,40 @@
+From a9b6ffb7fc9ad49ff1e55f0f7cf70f613e53da54 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Mon, 6 Dec 2021 18:57:53 +0200
+Subject: [PATCH v5.17 4/7] net: dsa: hide dp->bridge_dev and dp->bridge_num in
+ drivers behind helpers
+
+The location of the bridge device pointer and number is going to change.
+It is not going to be kept individually per port, but in a common
+structure allocated dynamically and which will have lockdep validation.
+
+Use the helpers to access these elements so that we have a migration
+path to the new organization.
+
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/rtl8366rb.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/dsa/rtl8366rb.c
++++ b/drivers/net/dsa/rtl8366rb.c
+@@ -1198,7 +1198,7 @@ rtl8366rb_port_bridge_join(struct dsa_sw
+ 		if (i == port)
+ 			continue;
+ 		/* Not on this bridge */
+-		if (dsa_to_port(ds, i)->bridge_dev != bridge)
++		if (dsa_port_bridge_dev_get(dsa_to_port(ds, i)) != bridge)
+ 			continue;
+ 		/* Join this port to each other port on the bridge */
+ 		ret = regmap_update_bits(smi->map, RTL8366RB_PORT_ISO(i),
+@@ -1230,7 +1230,7 @@ rtl8366rb_port_bridge_leave(struct dsa_s
+ 		if (i == port)
+ 			continue;
+ 		/* Not on this bridge */
+-		if (dsa_to_port(ds, i)->bridge_dev != bridge)
++		if (dsa_port_bridge_dev_get(dsa_to_port(ds, i)) != bridge)
+ 			continue;
+ 		/* Remove this port from any other port on the bridge */
+ 		ret = regmap_update_bits(smi->map, RTL8366RB_PORT_ISO(i),

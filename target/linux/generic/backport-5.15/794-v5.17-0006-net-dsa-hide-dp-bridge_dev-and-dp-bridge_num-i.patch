@@ -1,0 +1,71 @@
+From bac96a6504d9402ae4ae10f06ba61ba6eb54ae10 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Mon, 6 Dec 2021 18:57:52 +0200
+Subject: [PATCH v5.17 6/7] net: dsa: hide dp->bridge_dev and dp->bridge_num in
+ the core behind helpers
+
+The location of the bridge device pointer and number is going to change.
+It is not going to be kept individually per port, but in a common
+structure allocated dynamically and which will have lockdep validation.
+
+Create helpers to access these elements so that we have a migration path
+to the new organization.
+
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ include/net/dsa.h  | 21 +++++++++++++++++++++
+ net/dsa/dsa_priv.h |  4 ++--
+ 2 files changed, 23 insertions(+), 2 deletions(-)
+
+--- a/include/net/dsa.h
++++ b/include/net/dsa.h
+@@ -599,6 +599,27 @@ struct net_device *dsa_port_to_bridge_po
+ 	return dp->slave;
+ }
+ 
++static inline struct net_device *
++dsa_port_bridge_dev_get(const struct dsa_port *dp)
++{
++	return dp->bridge_dev;
++}
++
++static inline unsigned int dsa_port_bridge_num_get(struct dsa_port *dp)
++{
++	return dp->bridge_num;
++}
++
++static inline bool dsa_port_bridge_same(const struct dsa_port *a,
++					const struct dsa_port *b)
++{
++	struct net_device *br_a = dsa_port_bridge_dev_get(a);
++	struct net_device *br_b = dsa_port_bridge_dev_get(b);
++
++	/* Standalone ports are not in the same bridge with one another */
++	return (!br_a || !br_b) ? false : (br_a == br_b);
++}
++
+ typedef int dsa_fdb_dump_cb_t(const unsigned char *addr, u16 vid,
+ 			      bool is_static, void *data);
+ struct dsa_switch_ops {
+--- a/net/dsa/dsa_priv.h
++++ b/net/dsa/dsa_priv.h
+@@ -278,7 +278,7 @@ static inline bool dsa_port_offloads_bri
+ 	/* DSA ports connected to a bridge, and event was emitted
+ 	 * for the bridge.
+ 	 */
+-	return dp->bridge_dev == bridge_dev;
++	return dsa_port_bridge_dev_get(dp) == bridge_dev;
+ }
+ 
+ /* Returns true if any port of this tree offloads the given net_device */
+@@ -345,7 +345,7 @@ dsa_slave_to_master(const struct net_dev
+ static inline struct sk_buff *dsa_untag_bridge_pvid(struct sk_buff *skb)
+ {
+ 	struct dsa_port *dp = dsa_slave_to_port(skb->dev);
+-	struct net_device *br = dp->bridge_dev;
++	struct net_device *br = dsa_port_bridge_dev_get(dp);
+ 	struct net_device *dev = skb->dev;
+ 	struct net_device *upper_dev;
+ 	u16 vid, pvid, proto;

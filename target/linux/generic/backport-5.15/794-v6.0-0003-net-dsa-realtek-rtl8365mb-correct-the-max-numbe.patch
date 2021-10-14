@@ -1,0 +1,41 @@
+From e0f0694d3cfaa882c69348b729c27ff891303774 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Thu, 16 Jun 2022 00:51:13 +0200
+Subject: [PATCH v6.0 3/5] net: dsa: realtek: rtl8365mb: correct the max number
+ of ports
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The maximum number of ports is actually 11, according to two
+observations:
+
+1. The highest port ID used in the vendor driver is 10. Since port IDs
+   are indexed from 0, and since DSA follows the same numbering system,
+   this means up to 11 ports are to be presumed.
+
+2. The registers with port mask fields always amount to a maximum port
+   mask of 0x7FF, corresponding to a maximum 11 ports.
+
+In view of this, I also deleted the comment.
+
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+(cherry picked from commit ca5ecd4246d49ae4172cbf0ec4ef64c042d677b5)
+---
+ drivers/net/dsa/realtek/rtl8365mb.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -115,8 +115,7 @@
+ #define RTL8365MB_PHYADDRMAX		7
+ #define RTL8365MB_NUM_PHYREGS		32
+ #define RTL8365MB_PHYREGMAX		(RTL8365MB_NUM_PHYREGS - 1)
+-/* RTL8370MB and RTL8310SR, possibly suportable by this driver, have 10 ports */
+-#define RTL8365MB_MAX_NUM_PORTS		10
++#define RTL8365MB_MAX_NUM_PORTS		11
+ #define RTL8365MB_LEARN_LIMIT_MAX	2112
+ 
+ /* valid for all 6-port or less variants */

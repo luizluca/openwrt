@@ -1,0 +1,44 @@
+From 909cceefff64ca5da8df85a6d17144d3bddcc070 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Wed, 21 Sep 2022 22:05:20 +0800
+Subject: [PATCH v6.1] net: dsa: realtek: remove unnecessary set_drvdata()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Remove unnecessary set_drvdata(NULL) function in ->remove(),
+the driver_data will be set to NULL in device_unbind_cleanup()
+after calling ->remove().
+
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Acked-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Acked-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+(cherry picked from commit 24d64ced1bf8d333dc4697d1cc6d2b4f64cc145d)
+---
+ drivers/net/dsa/realtek/realtek-mdio.c | 2 --
+ drivers/net/dsa/realtek/realtek-smi.c  | 2 --
+ 2 files changed, 4 deletions(-)
+
+--- a/drivers/net/dsa/realtek/realtek-mdio.c
++++ b/drivers/net/dsa/realtek/realtek-mdio.c
+@@ -245,8 +245,6 @@ static void realtek_mdio_remove(struct m
+ 	/* leave the device reset asserted */
+ 	if (priv->reset)
+ 		gpiod_set_value(priv->reset, 1);
+-
+-	dev_set_drvdata(&mdiodev->dev, NULL);
+ }
+ 
+ static void realtek_mdio_shutdown(struct mdio_device *mdiodev)
+--- a/drivers/net/dsa/realtek/realtek-smi.c
++++ b/drivers/net/dsa/realtek/realtek-smi.c
+@@ -522,8 +522,6 @@ static int realtek_smi_remove(struct pla
+ 	if (priv->reset)
+ 		gpiod_set_value(priv->reset, 1);
+ 
+-	platform_set_drvdata(pdev, NULL);
+-
+ 	return 0;
+ }
+ 

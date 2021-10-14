@@ -1,0 +1,46 @@
+From e452d076c9ad92713f0bfe4cba180248c4013fb2 Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Fri, 28 Jan 2022 03:04:57 -0300
+Subject: [PATCH v5.18 01/27] net: dsa: realtek-smi: fix kdoc warnings
+
+Removed kdoc mark for incomplete struct description.
+Added a return description for rtl8366rb_drop_untagged.
+
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/realtek-smi-core.h | 4 ++--
+ drivers/net/dsa/rtl8366rb.c        | 2 ++
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+--- a/drivers/net/dsa/realtek-smi-core.h
++++ b/drivers/net/dsa/realtek-smi-core.h
+@@ -25,7 +25,7 @@ struct rtl8366_mib_counter {
+ 	const char	*name;
+ };
+ 
+-/**
++/*
+  * struct rtl8366_vlan_mc - Virtual LAN member configuration
+  */
+ struct rtl8366_vlan_mc {
+@@ -74,7 +74,7 @@ struct realtek_smi {
+ 	void			*chip_data; /* Per-chip extra variant data */
+ };
+ 
+-/**
++/*
+  * struct realtek_smi_ops - vtable for the per-SMI-chiptype operations
+  * @detect: detects the chiptype
+  */
+--- a/drivers/net/dsa/rtl8366rb.c
++++ b/drivers/net/dsa/rtl8366rb.c
+@@ -1251,6 +1251,8 @@ rtl8366rb_port_bridge_leave(struct dsa_s
+  * @smi: SMI state container
+  * @port: the port to drop untagged and C-tagged frames on
+  * @drop: whether to drop or pass untagged and C-tagged frames
++ *
++ * Return: zero for success, a negative number on error.
+  */
+ static int rtl8366rb_drop_untagged(struct realtek_smi *smi, int port, bool drop)
+ {

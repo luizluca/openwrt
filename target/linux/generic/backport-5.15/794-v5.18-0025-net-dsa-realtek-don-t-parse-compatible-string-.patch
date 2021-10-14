@@ -1,0 +1,36 @@
+From d7d727f6f246603d00f2e062fad1d632208e48a2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Tue, 12 Apr 2022 17:57:49 +0200
+Subject: [PATCH v5.18 25/27] net: dsa: realtek: don't parse compatible string
+ for RTL8366S
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This switch is not even supported, but if someone were to actually put
+this compatible string "realtek,rtl8366s" in their device tree, they
+would be greeted with a kernel panic because the probe function would
+dereference NULL. So let's just remove it.
+
+Link: https://lore.kernel.org/all/CACRpkdYdKZs0WExXc3=0yPNOwP+oOV60HRz7SRoGjZvYHaT=1g@mail.gmail.com/
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/realtek/realtek-smi.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+--- a/drivers/net/dsa/realtek/realtek-smi.c
++++ b/drivers/net/dsa/realtek/realtek-smi.c
+@@ -546,11 +546,6 @@ static const struct of_device_id realtek
+ 		.data = &rtl8366rb_variant,
+ 	},
+ #endif
+-	{
+-		/* FIXME: add support for RTL8366S and more */
+-		.compatible = "realtek,rtl8366s",
+-		.data = NULL,
+-	},
+ #if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8365MB)
+ 	{
+ 		.compatible = "realtek,rtl8365mb",

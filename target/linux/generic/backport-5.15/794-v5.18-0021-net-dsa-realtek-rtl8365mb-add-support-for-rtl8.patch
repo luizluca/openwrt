@@ -1,0 +1,188 @@
+From aa76f5b5e8bfe1e29762fc59e665ded958cfd21c Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Wed, 2 Mar 2022 22:52:35 -0300
+Subject: [PATCH v5.18 21/27] net: dsa: realtek: rtl8365mb: add support for
+ rtl8_4t
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The trailing tag is also supported by this family. The default is still
+rtl8_4 but now the switch supports changing the tag to rtl8_4t.
+
+Reintroduce the dropped cpu in struct rtl8365mb (removed by 6147631).
+
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Reviewed-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Vladimir Oltean <olteanv@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/realtek/rtl8365mb.c | 77 +++++++++++++++++++++++------
+ 1 file changed, 62 insertions(+), 15 deletions(-)
+
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -566,6 +566,7 @@ struct rtl8365mb_port {
+  * @chip_ver: chip silicon revision
+  * @port_mask: mask of all ports
+  * @learn_limit_max: maximum number of L2 addresses the chip can learn
++ * @cpu: CPU tagging and CPU port configuration for this chip
+  * @mib_lock: prevent concurrent reads of MIB counters
+  * @ports: per-port data
+  * @jam_table: chip-specific initialization jam table
+@@ -580,6 +581,7 @@ struct rtl8365mb {
+ 	u32 chip_ver;
+ 	u32 port_mask;
+ 	u32 learn_limit_max;
++	struct rtl8365mb_cpu cpu;
+ 	struct mutex mib_lock;
+ 	struct rtl8365mb_port ports[RTL8365MB_MAX_NUM_PORTS];
+ 	const struct rtl8365mb_jam_tbl_entry *jam_table;
+@@ -782,6 +784,16 @@ static enum dsa_tag_protocol
+ rtl8365mb_get_tag_protocol(struct dsa_switch *ds, int port,
+ 			   enum dsa_tag_protocol mp)
+ {
++	struct realtek_priv *priv = ds->priv;
++	struct rtl8365mb_cpu *cpu;
++	struct rtl8365mb *mb;
++
++	mb = priv->chip_data;
++	cpu = &mb->cpu;
++
++	if (cpu->position == RTL8365MB_CPU_POS_BEFORE_CRC)
++		return DSA_TAG_PROTO_RTL8_4T;
++
+ 	return DSA_TAG_PROTO_RTL8_4;
+ }
+ 
+@@ -1759,8 +1771,10 @@ static void rtl8365mb_irq_teardown(struc
+ 	}
+ }
+ 
+-static int rtl8365mb_cpu_config(struct realtek_priv *priv, const struct rtl8365mb_cpu *cpu)
++static int rtl8365mb_cpu_config(struct realtek_priv *priv)
+ {
++	struct rtl8365mb *mb = priv->chip_data;
++	struct rtl8365mb_cpu *cpu = &mb->cpu;
+ 	u32 val;
+ 	int ret;
+ 
+@@ -1786,6 +1800,37 @@ static int rtl8365mb_cpu_config(struct r
+ 	return 0;
+ }
+ 
++static int rtl8365mb_change_tag_protocol(struct dsa_switch *ds, int cpu_index,
++					 enum dsa_tag_protocol proto)
++{
++	struct realtek_priv *priv = ds->priv;
++	struct rtl8365mb_cpu *cpu;
++	struct rtl8365mb *mb;
++
++	mb = priv->chip_data;
++	cpu = &mb->cpu;
++
++	switch (proto) {
++	case DSA_TAG_PROTO_RTL8_4:
++		cpu->format = RTL8365MB_CPU_FORMAT_8BYTES;
++		cpu->position = RTL8365MB_CPU_POS_AFTER_SA;
++		break;
++	case DSA_TAG_PROTO_RTL8_4T:
++		cpu->format = RTL8365MB_CPU_FORMAT_8BYTES;
++		cpu->position = RTL8365MB_CPU_POS_BEFORE_CRC;
++		break;
++	/* The switch also supports a 4-byte format, similar to rtl4a but with
++	 * the same 0x04 8-bit version and probably 8-bit port source/dest.
++	 * There is no public doc about it. Not supported yet and it will probably
++	 * never be.
++	 */
++	default:
++		return -EPROTONOSUPPORT;
++	}
++
++	return rtl8365mb_cpu_config(priv);
++}
++
+ static int rtl8365mb_switch_init(struct realtek_priv *priv)
+ {
+ 	struct rtl8365mb *mb = priv->chip_data;
+@@ -1832,13 +1877,14 @@ static int rtl8365mb_reset_chip(struct r
+ static int rtl8365mb_setup(struct dsa_switch *ds)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+-	struct rtl8365mb_cpu cpu = {0};
++	struct rtl8365mb_cpu *cpu;
+ 	struct dsa_port *cpu_dp;
+ 	struct rtl8365mb *mb;
+ 	int ret;
+ 	int i;
+ 
+ 	mb = priv->chip_data;
++	cpu = &mb->cpu;
+ 
+ 	ret = rtl8365mb_reset_chip(priv);
+ 	if (ret) {
+@@ -1861,21 +1907,14 @@ static int rtl8365mb_setup(struct dsa_sw
+ 		dev_info(priv->dev, "no interrupt support\n");
+ 
+ 	/* Configure CPU tagging */
+-	cpu.trap_port = RTL8365MB_MAX_NUM_PORTS;
+ 	dsa_switch_for_each_cpu_port(cpu_dp, priv->ds) {
+-		cpu.mask |= BIT(cpu_dp->index);
++		cpu->mask |= BIT(cpu_dp->index);
+ 
+-		if (cpu.trap_port == RTL8365MB_MAX_NUM_PORTS)
+-			cpu.trap_port = cpu_dp->index;
++		if (cpu->trap_port == RTL8365MB_MAX_NUM_PORTS)
++			cpu->trap_port = cpu_dp->index;
+ 	}
+-
+-	cpu.enable = cpu.mask > 0;
+-	cpu.insert = RTL8365MB_CPU_INSERT_TO_ALL;
+-	cpu.position = RTL8365MB_CPU_POS_AFTER_SA;
+-	cpu.rx_length = RTL8365MB_CPU_RXLEN_64BYTES;
+-	cpu.format = RTL8365MB_CPU_FORMAT_8BYTES;
+-
+-	ret = rtl8365mb_cpu_config(priv, &cpu);
++	cpu->enable = cpu->mask > 0;
++	ret = rtl8365mb_cpu_config(priv);
+ 	if (ret)
+ 		goto out_teardown_irq;
+ 
+@@ -1887,7 +1926,7 @@ static int rtl8365mb_setup(struct dsa_sw
+ 			continue;
+ 
+ 		/* Forward only to the CPU */
+-		ret = rtl8365mb_port_set_isolation(priv, i, cpu.mask);
++		ret = rtl8365mb_port_set_isolation(priv, i, cpu->mask);
+ 		if (ret)
+ 			goto out_teardown_irq;
+ 
+@@ -2017,6 +2056,12 @@ static int rtl8365mb_detect(struct realt
+ 		mb->jam_table = rtl8365mb_init_jam_8365mb_vc;
+ 		mb->jam_size = ARRAY_SIZE(rtl8365mb_init_jam_8365mb_vc);
+ 
++		mb->cpu.trap_port = RTL8365MB_MAX_NUM_PORTS;
++		mb->cpu.insert = RTL8365MB_CPU_INSERT_TO_ALL;
++		mb->cpu.position = RTL8365MB_CPU_POS_AFTER_SA;
++		mb->cpu.rx_length = RTL8365MB_CPU_RXLEN_64BYTES;
++		mb->cpu.format = RTL8365MB_CPU_FORMAT_8BYTES;
++
+ 		break;
+ 	default:
+ 		dev_err(priv->dev,
+@@ -2030,6 +2075,7 @@ static int rtl8365mb_detect(struct realt
+ 
+ static const struct dsa_switch_ops rtl8365mb_switch_ops_smi = {
+ 	.get_tag_protocol = rtl8365mb_get_tag_protocol,
++	.change_tag_protocol = rtl8365mb_change_tag_protocol,
+ 	.setup = rtl8365mb_setup,
+ 	.teardown = rtl8365mb_teardown,
+ 	.phylink_validate = rtl8365mb_phylink_validate,
+@@ -2048,6 +2094,7 @@ static const struct dsa_switch_ops rtl83
+ 
+ static const struct dsa_switch_ops rtl8365mb_switch_ops_mdio = {
+ 	.get_tag_protocol = rtl8365mb_get_tag_protocol,
++	.change_tag_protocol = rtl8365mb_change_tag_protocol,
+ 	.setup = rtl8365mb_setup,
+ 	.teardown = rtl8365mb_teardown,
+ 	.phylink_validate = rtl8365mb_phylink_validate,
