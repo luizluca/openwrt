@@ -1,0 +1,135 @@
+From 2e405875f39ff24aa88a21f90f63e5e18b344e8c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Mon, 18 Oct 2021 11:37:59 +0200
+Subject: [PATCH 4/7] dt-bindings: net: dsa: realtek-smi: document new
+ compatible rtl8365mb
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+rtl8365mb is a new realtek-smi subdriver for the RTL8365MB-VC 4+1 port
+10/100/1000M Ethernet switch controller. Its compatible string is
+"realtek,rtl8365mb".
+
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Acked-by: Rob Herring <robh@kernel.org>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ .../bindings/net/dsa/realtek-smi.txt          | 87 +++++++++++++++++++
+ 1 file changed, 87 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/net/dsa/realtek-smi.txt b/Documentation/devicetree/bindings/net/dsa/realtek-smi.txt
+index b6ae8541bd55..7959ec237983 100644
+--- a/Documentation/devicetree/bindings/net/dsa/realtek-smi.txt
++++ b/Documentation/devicetree/bindings/net/dsa/realtek-smi.txt
+@@ -9,6 +9,7 @@ SMI-based Realtek devices.
+ Required properties:
+ 
+ - compatible: must be exactly one of:
++      "realtek,rtl8365mb" (4+1 ports)
+       "realtek,rtl8366"
+       "realtek,rtl8366rb" (4+1 ports)
+       "realtek,rtl8366s"  (4+1 ports)
+@@ -62,6 +63,8 @@ and subnodes of DSA switches.
+ 
+ Examples:
+ 
++An example for the RTL8366RB:
++
+ switch {
+ 	compatible = "realtek,rtl8366rb";
+ 	/* 22 = MDIO (has input reads), 21 = MDC (clock, output only) */
+@@ -151,3 +154,87 @@ switch {
+ 		};
+ 	};
+ };
++
++An example for the RTL8365MB-VC:
++
++switch {
++	compatible = "realtek,rtl8365mb";
++	mdc-gpios = <&gpio1 16 GPIO_ACTIVE_HIGH>;
++	mdio-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;
++	reset-gpios = <&gpio5 0 GPIO_ACTIVE_LOW>;
++
++	switch_intc: interrupt-controller {
++		interrupt-parent = <&gpio5>;
++		interrupts = <1 IRQ_TYPE_LEVEL_LOW>;
++		interrupt-controller;
++		#address-cells = <0>;
++		#interrupt-cells = <1>;
++	};
++
++	ports {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		reg = <0>;
++		port@0 {
++			reg = <0>;
++			label = "swp0";
++			phy-handle = <&ethphy0>;
++		};
++		port@1 {
++			reg = <1>;
++			label = "swp1";
++			phy-handle = <&ethphy1>;
++		};
++		port@2 {
++			reg = <2>;
++			label = "swp2";
++			phy-handle = <&ethphy2>;
++		};
++		port@3 {
++			reg = <3>;
++			label = "swp3";
++			phy-handle = <&ethphy3>;
++		};
++		port@6 {
++			reg = <6>;
++			label = "cpu";
++			ethernet = <&fec1>;
++			phy-mode = "rgmii";
++			tx-internal-delay-ps = <2000>;
++			rx-internal-delay-ps = <2000>;
++
++			fixed-link {
++				speed = <1000>;
++				full-duplex;
++				pause;
++			};
++		};
++	};
++
++	mdio {
++		compatible = "realtek,smi-mdio";
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		ethphy0: phy@0 {
++			reg = <0>;
++			interrupt-parent = <&switch_intc>;
++			interrupts = <0>;
++		};
++		ethphy1: phy@1 {
++			reg = <1>;
++			interrupt-parent = <&switch_intc>;
++			interrupts = <1>;
++		};
++		ethphy2: phy@2 {
++			reg = <2>;
++			interrupt-parent = <&switch_intc>;
++			interrupts = <2>;
++		};
++		ethphy3: phy@3 {
++			reg = <3>;
++			interrupt-parent = <&switch_intc>;
++			interrupts = <3>;
++		};
++	};
++};
+-- 
+2.25.1
+

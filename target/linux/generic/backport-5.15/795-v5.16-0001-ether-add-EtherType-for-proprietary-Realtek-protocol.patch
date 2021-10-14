@@ -1,0 +1,49 @@
+From 7bbbbfaa7a1b0b03890f25fba5f28bb8c7ef145a Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Mon, 18 Oct 2021 11:37:56 +0200
+Subject: [PATCH 1/7] ether: add EtherType for proprietary Realtek protocols
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add a new EtherType ETH_P_REALTEK to the if_ether.h uapi header. The
+EtherType 0x8899 is used in a number of different protocols from Realtek
+Semiconductor Corp [1], so no general assumptions should be made when
+trying to decode such packets. Observed protocols include:
+
+  0x1 - Realtek Remote Control protocol [2]
+  0x2 - Echo protocol [2]
+  0x3 - Loop detection protocol [2]
+  0x4 - RTL8365MB 4- and 8-byte switch CPU tag protocols [3]
+  0x9 - RTL8306 switch CPU tag protocol [4]
+  0xA - RTL8366RB switch CPU tag protocol [4]
+
+[1] https://lore.kernel.org/netdev/CACRpkdYQthFgjwVzHyK3DeYUOdcYyWmdjDPG=Rf9B3VrJ12Rzg@mail.gmail.com/
+[2] https://www.wireshark.org/lists/ethereal-dev/200409/msg00090.html
+[3] https://lore.kernel.org/netdev/20210822193145.1312668-4-alvin@pqrs.dk/
+[4] https://lore.kernel.org/netdev/20200708122537.1341307-2-linus.walleij@linaro.org/
+
+Suggested-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Vladimir Oltean <olteanv@gmail.com>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/uapi/linux/if_ether.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/uapi/linux/if_ether.h b/include/uapi/linux/if_ether.h
+index 5f589c7a8382..5da4ee234e0b 100644
+--- a/include/uapi/linux/if_ether.h
++++ b/include/uapi/linux/if_ether.h
+@@ -86,6 +86,7 @@
+ 					 * over Ethernet
+ 					 */
+ #define ETH_P_PAE	0x888E		/* Port Access Entity (IEEE 802.1X) */
++#define ETH_P_REALTEK	0x8899          /* Multiple proprietary protocols */
+ #define ETH_P_AOE	0x88A2		/* ATA over Ethernet		*/
+ #define ETH_P_8021AD	0x88A8          /* 802.1ad Service VLAN		*/
+ #define ETH_P_802_EX1	0x88B5		/* 802.1 Local Experimental 1.  */
+-- 
+2.25.1
+

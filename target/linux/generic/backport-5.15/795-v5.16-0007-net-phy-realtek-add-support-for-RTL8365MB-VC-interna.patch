@@ -1,0 +1,43 @@
+From 2ca2969aae1e110fe243a50d6d5809f6f4895092 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Mon, 18 Oct 2021 11:38:02 +0200
+Subject: [PATCH 7/7] net: phy: realtek: add support for RTL8365MB-VC internal
+ PHYs
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The RTL8365MB-VC ethernet switch controller has 4 internal PHYs for its
+user-facing ports. All that is needed is to let the PHY driver core
+pick up the IRQ made available by the switch driver.
+
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/phy/realtek.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/net/phy/realtek.c b/drivers/net/phy/realtek.c
+index 11be60333fa8..a5671ab896b3 100644
+--- a/drivers/net/phy/realtek.c
++++ b/drivers/net/phy/realtek.c
+@@ -1023,6 +1023,14 @@ static struct phy_driver realtek_drvs[] = {
+ 		.resume		= genphy_resume,
+ 		.read_page	= rtl821x_read_page,
+ 		.write_page	= rtl821x_write_page,
++	}, {
++		PHY_ID_MATCH_EXACT(0x001cc942),
++		.name		= "RTL8365MB-VC Gigabit Ethernet",
++		/* Interrupt handling analogous to RTL8366RB */
++		.config_intr	= genphy_no_config_intr,
++		.handle_interrupt = genphy_handle_interrupt_no_ack,
++		.suspend	= genphy_suspend,
++		.resume		= genphy_resume,
+ 	},
+ };
+ 
+-- 
+2.25.1
+

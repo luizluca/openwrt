@@ -1,0 +1,76 @@
+From 9cb8edda2157afcd70dd90eb601b4cbc786c2e70 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alvin=20=C5=A0ipraga?= <alsi@bang-olufsen.dk>
+Date: Mon, 18 Oct 2021 11:37:58 +0200
+Subject: [PATCH 3/7] net: dsa: move NET_DSA_TAG_RTL4_A to right place in
+ Kconfig/Makefile
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Move things around a little so that this tag driver is alphabetically
+ordered. The Kconfig file is sorted based on the tristate text.
+
+Suggested-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Reviewed-by: Vladimir Oltean <olteanv@gmail.com>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/dsa/Kconfig  | 14 +++++++-------
+ net/dsa/Makefile |  2 +-
+ 2 files changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/net/dsa/Kconfig b/net/dsa/Kconfig
+index d8ee15f1c7a9..3a09784dae63 100644
+--- a/net/dsa/Kconfig
++++ b/net/dsa/Kconfig
+@@ -92,13 +92,6 @@ config NET_DSA_TAG_KSZ
+ 	  Say Y if you want to enable support for tagging frames for the
+ 	  Microchip 8795/9477/9893 families of switches.
+ 
+-config NET_DSA_TAG_RTL4_A
+-	tristate "Tag driver for Realtek 4 byte protocol A tags"
+-	help
+-	  Say Y or M if you want to enable support for tagging frames for the
+-	  Realtek switches with 4 byte protocol A tags, sich as found in
+-	  the Realtek RTL8366RB.
+-
+ config NET_DSA_TAG_OCELOT
+ 	tristate "Tag driver for Ocelot family of switches, using NPI port"
+ 	select PACKING
+@@ -126,6 +119,13 @@ config NET_DSA_TAG_QCA
+ 	  Say Y or M if you want to enable support for tagging frames for
+ 	  the Qualcomm Atheros QCA8K switches.
+ 
++config NET_DSA_TAG_RTL4_A
++	tristate "Tag driver for Realtek 4 byte protocol A tags"
++	help
++	  Say Y or M if you want to enable support for tagging frames for the
++	  Realtek switches with 4 byte protocol A tags, sich as found in
++	  the Realtek RTL8366RB.
++
+ config NET_DSA_TAG_LAN9303
+ 	tristate "Tag driver for SMSC/Microchip LAN9303 family of switches"
+ 	help
+diff --git a/net/dsa/Makefile b/net/dsa/Makefile
+index 67ea009f242c..f78d537044db 100644
+--- a/net/dsa/Makefile
++++ b/net/dsa/Makefile
+@@ -10,12 +10,12 @@ obj-$(CONFIG_NET_DSA_TAG_DSA_COMMON) += tag_dsa.o
+ obj-$(CONFIG_NET_DSA_TAG_GSWIP) += tag_gswip.o
+ obj-$(CONFIG_NET_DSA_TAG_HELLCREEK) += tag_hellcreek.o
+ obj-$(CONFIG_NET_DSA_TAG_KSZ) += tag_ksz.o
+-obj-$(CONFIG_NET_DSA_TAG_RTL4_A) += tag_rtl4_a.o
+ obj-$(CONFIG_NET_DSA_TAG_LAN9303) += tag_lan9303.o
+ obj-$(CONFIG_NET_DSA_TAG_MTK) += tag_mtk.o
+ obj-$(CONFIG_NET_DSA_TAG_OCELOT) += tag_ocelot.o
+ obj-$(CONFIG_NET_DSA_TAG_OCELOT_8021Q) += tag_ocelot_8021q.o
+ obj-$(CONFIG_NET_DSA_TAG_QCA) += tag_qca.o
++obj-$(CONFIG_NET_DSA_TAG_RTL4_A) += tag_rtl4_a.o
+ obj-$(CONFIG_NET_DSA_TAG_SJA1105) += tag_sja1105.o
+ obj-$(CONFIG_NET_DSA_TAG_TRAILER) += tag_trailer.o
+ obj-$(CONFIG_NET_DSA_TAG_XRS700X) += tag_xrs700x.o
+-- 
+2.25.1
+
