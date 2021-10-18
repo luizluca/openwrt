@@ -1,0 +1,31 @@
+From linux-gpio  Mon Oct 18 00:59:15 2021
+From: luizluca () gmail ! com
+Date: Mon, 18 Oct 2021 00:59:15 +0000
+To: linux-gpio
+Subject: [PATCH] pinctrl: ralink: include 'ralink_regs.h' in 'pinctrl-mt7620.c'
+Message-Id: <20211018005915.17601-1-luizluca () gmail ! com>
+X-MARC-Message: https://marc.info/?l=linux-gpio&m=163451871101511
+
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+
+mt7620.h, included by pinctrl-mt7620.c, mentions MT762X_SOC_MT7628AN
+declared in ralink_regs.h.
+
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/pinctrl/ralink/pinctrl-mt7620.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/pinctrl/ralink/pinctrl-mt7620.c b/drivers/pinctrl/ralink/pinctrl-mt7620.c
+index 425d55a2ee19..6853b5b8b0fe 100644
+--- a/drivers/pinctrl/ralink/pinctrl-mt7620.c
++++ b/drivers/pinctrl/ralink/pinctrl-mt7620.c
+@@ -1,5 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ 
++#include <asm/mach-ralink/ralink_regs.h>
+ #include <asm/mach-ralink/mt7620.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+-- 
+2.33.0
