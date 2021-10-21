@@ -1,0 +1,44 @@
+--- a/drivers/net/dsa/rtl8365mb.c
++++ b/drivers/net/dsa/rtl8365mb.c
+@@ -103,9 +103,15 @@
+ 
+ /* Chip-specific data and limits */
+ #define RTL8365MB_CHIP_ID_8365MB_VC		0x6367
++#define RTL8365MB_CHIP_VER_8365MB_VC		0x0040
+ #define RTL8365MB_CPU_PORT_NUM_8365MB_VC	6
+ #define RTL8365MB_LEARN_LIMIT_MAX_8365MB_VC	2112
+ 
++#define RTL8365MB_CHIP_ID_8367S			0x6367
++#define RTL8365MB_CHIP_VER_8367S		0x00A0
++#define RTL8365MB_CPU_PORT_NUM_8367S		7
++#define RTL8365MB_LEARN_LIMIT_MAX_8367S		2112
++
+ /* Family-specific data and limits */
+ #define RTL8365MB_NUM_PHYREGS	32
+ #define RTL8365MB_PHYREGMAX	(RTL8365MB_NUM_PHYREGS - 1)
+@@ -1913,11 +1919,21 @@ static int rtl8365mb_detect(struct realt
+ 
+ 	switch (chip_id) {
+ 	case RTL8365MB_CHIP_ID_8365MB_VC:
+-		dev_info(smi->dev,
+-			 "found an RTL8365MB-VC switch (ver=0x%04x)\n",
+-			 chip_ver);
++		if (chip_ver == RTL8365MB_CHIP_VER_8365MB_VC) {
++			dev_info(smi->dev,
++				"found an RTL8365MB-VC switch (ver=0x%04x)\n",
++				chip_ver);
++			smi->cpu_port = RTL8365MB_CPU_PORT_NUM_8365MB_VC;
++			} else if (chip_ver == RTL8365MB_CHIP_VER_8367S) {
++				dev_info(smi->dev,
++				"found an RTL8367S switch (ver=0x%04x)\n",
++				chip_ver);
++			smi->cpu_port = RTL8365MB_CPU_PORT_NUM_8367S;
++			} else {
++				dev_err(smi->dev, "unrecognized chip\n");
++				return -ENODEV;
++			}
+ 
+-		smi->cpu_port = RTL8365MB_CPU_PORT_NUM_8365MB_VC;
+ 		smi->num_ports = smi->cpu_port + 1;
+ 
+ 		mb->smi = smi;
