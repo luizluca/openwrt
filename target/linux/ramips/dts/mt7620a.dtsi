@@ -445,9 +445,6 @@
 		ralink,sysctl = <&sysc>;
 		resets = <&rstctrl 22 &rstctrl 25>;
 		reset-names = "host", "device";
-
-		clocks = <&clkctrl 22 &clkctrl 25>;
-		clock-names = "host", "device";
 	};
 
 	ethernet: ethernet@10100000 {
@@ -561,9 +558,6 @@
 
 		resets = <&rstctrl 26>;
 		reset-names = "pcie0";
-
-		clocks = <&clkctrl 26>;
-		clock-names = "pcie0";
 
 		interrupt-parent = <&cpuintc>;
 		interrupts = <4>;
