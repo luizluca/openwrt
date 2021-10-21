@@ -85,11 +85,11 @@
 		};
 	};
 
-	ethernet_switch: ethernet-switch {
+	switch {
 		compatible = "realtek,rtl8365mb";
-		mdc-gpios = <&gpio1 16 GPIO_ACTIVE_HIGH>;
-		mdio-gpios = <&gpio1 17 GPIO_ACTIVE_HIGH>;
-		reset-gpios = <&gpio2 0 GPIO_ACTIVE_LOW>;
+		mdc-gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;
+		mdio-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
 
 /*		switch_intc: interrupt-controller {*/
 /*			interrupt-parent = <&gpio2>;*/
@@ -103,36 +103,45 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg = <0>;
+
 			port@0 {
 				reg = <0>;
 				label = "lan1";
 				phy-handle = <&ethphy0>;
 			};
+
 			port@1 {
 				reg = <1>;
 				label = "lan2";
 				phy-handle = <&ethphy1>;
 			};
+
 			port@2 {
 				reg = <2>;
 				label = "lan3";
 				phy-handle = <&ethphy2>;
 			};
+
 			port@3 {
 				reg = <3>;
 				label = "lan4";
 				phy-handle = <&ethphy3>;
 			};
+
 			port@4 {
 				reg = <4>;
 				label = "wan";
 				phy-handle = <&ethphy4>;
 			};
-			port@5 {
+
+			port@7 {
 				reg = <7>;
 				label = "cpu";
-				ethernet = <&ethernet>;
-				phy-mode = "rgmii-id";
+				ethernet = <&sw0_p5>;
+				phy-mode = "rgmii";
+				tx-internal-delay-ps = <2000>;
+				rx-internal-delay-ps = <2000>;
+
 				fixed-link {
 					speed = <1000>;
 					full-duplex;
@@ -151,21 +160,25 @@
 /*				interrupt-parent = <&switch_intc>;*/
 /*				interrupts = <0>;*/
 			};
+
 			ethphy1: phy@1 {
 				reg = <1>;
 /*				interrupt-parent = <&switch_intc>;*/
 /*				interrupts = <1>;*/
 			};
+
 			ethphy2: phy@2 {
 				reg = <2>;
 /*				interrupt-parent = <&switch_intc>;*/
 /*				interrupts = <2>;*/
 			};
+
 			ethphy3: phy@3 {
 				reg = <3>;
 /*				interrupt-parent = <&switch_intc>;*/
 /*				interrupts = <3>;*/
 			};
+
 			ethphy4: phy@4 {
 				reg = <4>;
 /*				interrupt-parent = <&switch_intc>;*/
@@ -244,7 +257,7 @@
 	mtd-mac-address = <&rom 0xf100>;
 	pinctrl-0 = <&rgmii1_pins &mdio_pins>;
 
-	port@5 {
+	sw0_p5: port@5 {
 		status = "okay";
 		mediatek,fixed-link = <1000 1 1 1>;
 		phy-mode = "rgmii";
