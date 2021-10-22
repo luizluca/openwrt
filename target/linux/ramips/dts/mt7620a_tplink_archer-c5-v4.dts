@@ -87,9 +87,9 @@
 
 	switch {
 		compatible = "realtek,rtl8365mb";
-		mdc-gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;
-		mdio-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>;
-		reset-gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+/*		mdc-gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;*/
+/*		mdio-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>;*/
+		reset-gpios = <&gpio0 21 GPIO_ACTIVE_LOW>;
 
 /*		switch_intc: interrupt-controller {*/
 /*			interrupt-parent = <&gpio2>;*/
