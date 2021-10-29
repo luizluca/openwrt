@@ -1458,6 +1458,13 @@ static int fe_change_mtu(struct net_device *dev, int new_mtu)
 	struct fe_priv *priv = netdev_priv(dev);
 	int frag_size, old_mtu;
 	u32 fwd_cfg;
+	u32 fwd_reg;
+
+#ifdef CONFIG_SOC_MT7620
+	fwd_reg = MT7620A_GDMA1_FWD_CFG;
+#else
+	fwd_reg = FE_GDMA1_FWD_CFG;
+#endif
 
 	old_mtu = dev->mtu;
 	dev->mtu = new_mtu;
@@ -1482,7 +1489,7 @@ static int fe_change_mtu(struct net_device *dev, int new_mtu)
 
 	fe_stop(dev);
 	if (!IS_ENABLED(CONFIG_SOC_MT7621)) {
-		fwd_cfg = fe_r32(FE_GDMA1_FWD_CFG);
+		fwd_cfg = fe_r32(fwd_reg);
 		if (new_mtu <= ETH_DATA_LEN) {
 			fwd_cfg &= ~FE_GDM1_JMB_EN;
 		} else {
@@ -1491,7 +1498,7 @@ static int fe_change_mtu(struct net_device *dev, int new_mtu)
 			fwd_cfg |= (DIV_ROUND_UP(frag_size, 1024) <<
 			FE_GDM1_JMB_LEN_SHIFT) | FE_GDM1_JMB_EN;
 		}
-		fe_w32(fwd_cfg, FE_GDMA1_FWD_CFG);
+		fe_w32(fwd_cfg, fwd_reg);
 	}
 
 	return fe_open(dev);
@@ -1608,6 +1615,9 @@ static int fe_probe(struct platform_device *pdev)
 				  NETIF_F_HW_VLAN_CTAG_RX);
 	netdev->features |= netdev->hw_features;
 
+
+	if (IS_ENABLED(CONFIG_SOC_MT7620))
+		netdev->max_mtu = 2048;
 	if (IS_ENABLED(CONFIG_SOC_MT7621))
 		netdev->max_mtu = 2048;
 
