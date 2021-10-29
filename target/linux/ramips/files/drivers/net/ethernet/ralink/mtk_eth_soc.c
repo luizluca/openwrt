@@ -1608,6 +1608,9 @@ static int fe_probe(struct platform_device *pdev)
 				  NETIF_F_HW_VLAN_CTAG_RX);
 	netdev->features |= netdev->hw_features;
 
+
+	if (IS_ENABLED(CONFIG_SOC_MT7620))
+		netdev->max_mtu = 1508;
 	if (IS_ENABLED(CONFIG_SOC_MT7621))
 		netdev->max_mtu = 2048;
 
