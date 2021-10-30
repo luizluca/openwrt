@@ -133,3 +133,19 @@ define KernelPackage/sound-mt7620/description
 endef
 
 $(eval $(call KernelPackage,sound-mt7620))
+
+
+define KernelPackage/switch-realtek-smi
+  TITLE:=Realtek SMI DSA switch support (rtl8366rb, rtl8366s, rtl8365mb)
+  DEPENDS:=@TARGET_ramips
+  KCONFIG:=CONFIG_NET_DSA_REALTEK_SMI
+  FILES:=$(LINUX_DIR)/drivers/net/dsa/realtek-smi.ko
+  AUTOLOAD:=$(call AutoLoad,43,realtek-smi,1)
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+endef
+
+define KernelPackage/switch-realtek-smi/description
+ Realtek DSA Switch support for rtl8366rb, rtl8366s, rtl8365mb
+endef
+
+$(eval $(call KernelPackage,switch-realtek-smi))
