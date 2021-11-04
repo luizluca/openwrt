@@ -1,0 +1,56 @@
+From ffd153dac7be1ebcd0d5e1eb061f2507900e7a50 Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Thu, 4 Nov 2021 02:28:51 -0300
+Subject: [PATCH 9904/9904] net: dsa: realtek: add RTL8367S support
+
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/rtl8365mb.c | 22 +++++++++++++++++++++-
+ 1 file changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb.c b/drivers/net/dsa/realtek/rtl8365mb.c
+index 6c186a85cd30..dc372460eeb5 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -103,9 +103,15 @@
+ 
+ /* Chip-specific data and limits */
+ #define RTL8365MB_CHIP_ID_8365MB_VC		0x6367
++#define RTL8365MB_CHIP_VER_8365MB_VC		0x0040
+ #define RTL8365MB_CPU_PORT_NUM_8365MB_VC	6
+ #define RTL8365MB_LEARN_LIMIT_MAX_8365MB_VC	2112
+ 
++#define RTL8365MB_CHIP_ID_8367S			0x6367
++#define RTL8365MB_CHIP_VER_8367S		0x00A0
++#define RTL8365MB_CPU_PORT_NUM_8367S		7
++#define RTL8365MB_LEARN_LIMIT_MAX_8367S		2112
++
+ /* Family-specific data and limits */
+ #define RTL8365MB_NUM_PHYREGS	32
+ #define RTL8365MB_PHYREGMAX	(RTL8365MB_NUM_PHYREGS - 1)
+@@ -1926,7 +1932,21 @@ static int rtl8365mb_detect(struct realtek_priv *priv)
+ 			 "found an RTL8365MB-VC switch (ver=0x%04x)\n",
+ 			 chip_ver);
+ 
+-		priv->cpu_port = RTL8365MB_CPU_PORT_NUM_8365MB_VC;
++		if (chip_ver == RTL8365MB_CHIP_VER_8365MB_VC) {
++			dev_info(priv->dev,
++				"found an RTL8365MB-VC switch (ver=0x%04x)\n",
++				chip_ver);
++			priv->cpu_port = RTL8365MB_CPU_PORT_NUM_8365MB_VC;
++		} else if (chip_ver == RTL8365MB_CHIP_VER_8367S) {
++			dev_info(priv->dev,
++				"found an RTL8367S switch (ver=0x%04x)\n",
++				chip_ver);
++				priv->cpu_port = RTL8365MB_CPU_PORT_NUM_8367S;
++		} else {
++			dev_err(priv->dev, "unrecognized chip\n");
++			return -ENODEV;
++		}
++
+ 		priv->num_ports = priv->cpu_port + 1;
+ 
+ 		mb->priv = priv;
+-- 
+2.33.1
+

@@ -1,0 +1,32 @@
+From 339e75f6b9a076b3a9c01ab4bdd4f58975098445 Mon Sep 17 00:00:00 2001
+From: Yang Li <yang.lee@linux.alibaba.com>
+Date: Fri, 8 Oct 2021 14:21:17 +0800
+Subject: [PATCH 11/12] net: dsa: rtl8366rb: remove unneeded semicolon
+
+Eliminate the following coccicheck warning:
+./drivers/net/dsa/rtl8366rb.c:1348:2-3: Unneeded semicolon
+
+Reported-by: Abaci Robot <abaci@linux.alibaba.com>
+Signed-off-by: Yang Li <yang.lee@linux.alibaba.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/rtl8366rb.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/dsa/rtl8366rb.c b/drivers/net/dsa/rtl8366rb.c
+index d2370cda4be0..03deacd83e61 100644
+--- a/drivers/net/dsa/rtl8366rb.c
++++ b/drivers/net/dsa/rtl8366rb.c
+@@ -1345,7 +1345,7 @@ rtl8366rb_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
+ 	default:
+ 		dev_err(smi->dev, "unknown bridge state requested\n");
+ 		return;
+-	};
++	}
+ 
+ 	/* Set the same status for the port on all the FIDs */
+ 	for (i = 0; i < RTL8366RB_NUM_FIDS; i++) {
+-- 
+2.33.1
+

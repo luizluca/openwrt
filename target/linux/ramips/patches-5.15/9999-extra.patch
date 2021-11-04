@@ -1,0 +1,29 @@
+diff --git a/drivers/net/dsa/realtek/realtek-mdio.c b/drivers/net/dsa/realtek/realtek-mdio.c
+index e12375dcd5a0..79a56903cd98 100644
+--- a/drivers/net/dsa/realtek/realtek-mdio.c
++++ b/drivers/net/dsa/realtek/realtek-mdio.c
+@@ -82,6 +82,7 @@ int realtek_mdio_read_reg(struct realtek_priv *priv, u32 addr, u32 *data)
+ 
+         /* Read data from register 25 */
+         *data = bus->read(bus, phy_id, MDC_MDIO_DATA_READ_REG);
++	dev_warn(priv->dev, "read_reg(priv=%px, bus=%px, phy=%x, addr=%x, data=%x)\n", priv, bus, phy_id, addr, *data);
+ 
+         mutex_unlock(&bus->mdio_lock);
+ 
+@@ -121,6 +122,8 @@ static int realtek_mdio_write_reg(struct realtek_priv *priv, u32 addr, u32 data)
+         /* Write data control code to register 21 */
+         bus->write(bus, phy_id, MDC_MDIO_CTRL1_REG, MDC_MDIO_WRITE_OP);
+ 
++	dev_warn(priv->dev, "write_reg(priv=%px, bus=%px, phy=%x, addr=%x, data=%x)\n", priv, bus, phy_id, addr, data);
++
+         mutex_unlock(&bus->mdio_lock);
+         return 0;
+ }
+@@ -209,6 +212,7 @@ static int realtek_mdio_probe(struct mdio_device *mdiodev)
+ 
+ 	priv->leds_disabled = of_property_read_bool(np, "realtek,disable-leds");
+ 
++	dev_warn(priv->dev, "priv=%px, priv->bus=%px, mdio=%px, ds=%px, mdio-addr=%u\n", priv, priv->bus, mdiodev, priv->ds, mdiodev->addr);
+ 	ret = priv->ops->detect(priv);
+ 	if (ret) {
+ 		dev_err(dev, "unable to detect switch\n");

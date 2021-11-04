@@ -135,17 +135,27 @@ endef
 $(eval $(call KernelPackage,sound-mt7620))
 
 
-define KernelPackage/switch-realtek-smi
-  TITLE:=Realtek SMI DSA switch support (rtl8366rb, rtl8366s, rtl8365mb)
+# FIXME: split into multiple packages
+define KernelPackage/switch-realtek
+  TITLE:=Realtek SMI/MDIO DSA switch support (rtl8366rb, rtl8366s, rtl8365mb)
   DEPENDS:=@TARGET_ramips
-  KCONFIG:=CONFIG_NET_DSA_REALTEK_SMI
-  FILES:=$(LINUX_DIR)/drivers/net/dsa/realtek-smi.ko
-  AUTOLOAD:=$(call AutoLoad,43,realtek-smi,1)
+  KCONFIG:= \
+	CONFIG_NET_DSA_REALTEK \
+	CONFIG_NET_DSA_REALTEK_SMI \
+	CONFIG_NET_DSA_REALTEK_MDIO \
+	CONFIG_NET_DSA_REALTEK_RTL8365MB \
+	CONFIG_NET_DSA_REALTEK_RTL8366RB
+  FILES:= \
+	$(LINUX_DIR)/drivers/net/dsa/realtek/realtek-smi.ko \
+	$(LINUX_DIR)/drivers/net/dsa/realtek/realtek-mdio.ko \
+	$(LINUX_DIR)/drivers/net/dsa/realtek/rtl8365mb.ko \
+	$(LINUX_DIR)/drivers/net/dsa/realtek/rtl8366.ko
+  AUTOLOAD:=$(call AutoLoad,43,realtek-mdio,1)
   SUBMENU:=$(NETWORK_DEVICES_MENU)
 endef
 
-define KernelPackage/switch-realtek-smi/description
+define KernelPackage/switch-realtek/description
  Realtek DSA Switch support for rtl8366rb, rtl8366s, rtl8365mb
 endef
 
-$(eval $(call KernelPackage,switch-realtek-smi))
+$(eval $(call KernelPackage,switch-realtek))
