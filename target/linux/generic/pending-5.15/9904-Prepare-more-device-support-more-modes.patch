@@ -1,0 +1,439 @@
+From d64201989803274bf6ba8bb784e2bf500114cff5 Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Fri, 21 Jan 2022 16:27:22 -0300
+Subject: [PATCH 9904/9908] Prepare more device support, more modes
+
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/rtl8365mb.c | 345 ++++++++++++++++++++++++++--
+ 1 file changed, 328 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb.c b/drivers/net/dsa/realtek/rtl8365mb.c
+index 7bec858e01e5..ec1c2a394802 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -119,9 +119,6 @@
+ #define RTL8365MB_MAX_NUM_PORTS		10
+ #define RTL8365MB_LEARN_LIMIT_MAX	2112
+ 
+-/* valid for all 6-port or less variants */
+-static const int rtl8365mb_extint_port_map[]  = { -1, -1, -1, -1, -1, -1, 1, 2, -1, -1};
+-
+ /* Chip identification registers */
+ #define RTL8365MB_CHIP_ID_REG		0x1300
+ 
+@@ -564,6 +561,236 @@ struct rtl8365mb_cpu {
+ 	enum rtl8365mb_cpu_format format;
+ };
+ 
++enum rtl8365mb_port_type {
++	RTL8365MB_UNUSED_PORT = -99,
++	RTL8365MB_USER_PORT = -1,
++	RTL8365MB_EXTINT1_PORT = 1,
++	RTL8365MB_EXTINT2_PORT = 2,
++};
++
++struct rtl8365mb_port_desc {
++	short type;
++	u16   ext_modes;
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8363nb_ports[]  = {
++	{RTL8365MB_UNUSED_PORT}, /* port0 */
++	{RTL8365MB_USER_PORT},   /* port1 */
++	{RTL8365MB_UNUSED_PORT}, /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_UNUSED_PORT}, /* port4 */
++	{RTL8365MB_UNUSED_PORT}, /* port5 */
++	{RTL8365MB_EXTINT1_PORT, /* port6 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII) |
++		BIT(RTL8365MB_EXT_PORT_MODE_SGMII) |  BIT(RTL8365MB_EXT_PORT_MODE_HSGMII)
++	},
++	{RTL8365MB_UNUSED_PORT}, /* port7 */
++	{RTL8365MB_UNUSED_PORT}, /* port8 */
++	{RTL8365MB_UNUSED_PORT}, /* port9 */
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8364nb_ports[]  = {
++	{RTL8365MB_UNUSED_PORT}, /* port0 */
++	{RTL8365MB_USER_PORT},   /* port1 */
++	{RTL8365MB_UNUSED_PORT}, /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_UNUSED_PORT}, /* port4 */
++	{RTL8365MB_UNUSED_PORT}, /* port5 */
++	{RTL8365MB_EXTINT1_PORT, /* port6 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII) |
++		BIT(RTL8365MB_EXT_PORT_MODE_SGMII) |  BIT(RTL8365MB_EXT_PORT_MODE_HSGMII)
++	},
++	{RTL8365MB_EXTINT2_PORT, /* port7 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII)
++	},
++	{RTL8365MB_UNUSED_PORT}, /* port7 */
++	{RTL8365MB_UNUSED_PORT}, /* port8 */
++	{RTL8365MB_UNUSED_PORT}, /* port9 */
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8365mb_vc_ports[]  = {
++	{RTL8365MB_USER_PORT},   /* port0 */
++	{RTL8365MB_USER_PORT},   /* port1 */
++	{RTL8365MB_USER_PORT},   /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_UNUSED_PORT}, /* port4 */
++	{RTL8365MB_UNUSED_PORT}, /* port5 */
++	{RTL8365MB_EXTINT1_PORT, /* port6 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII)
++	},
++	{RTL8365MB_UNUSED_PORT}, /* port7 */
++	{RTL8365MB_UNUSED_PORT}, /* port8 */
++	{RTL8365MB_UNUSED_PORT}, /* port9 */
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8367rb_vb_ports[]  = {
++	{RTL8365MB_USER_PORT},   /* port0 */
++	{RTL8365MB_USER_PORT},   /* port1 */
++	{RTL8365MB_USER_PORT},   /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_USER_PORT},   /* port4 */
++	{RTL8365MB_UNUSED_PORT}, /* port5 */
++	{RTL8365MB_EXTINT1_PORT, /* port6 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII)
++	},
++	{RTL8365MB_EXTINT2_PORT, /* port7 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII)
++	},
++	{RTL8365MB_UNUSED_PORT}, /* port8 */
++	{RTL8365MB_UNUSED_PORT}, /* port9 */
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8367sb_ports[]  = {
++	{RTL8365MB_USER_PORT},   /* port0 */
++	{RTL8365MB_USER_PORT},   /* port1 */
++	{RTL8365MB_USER_PORT},   /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_USER_PORT},   /* port4 */
++	{RTL8365MB_UNUSED_PORT}, /* port5 */
++	{RTL8365MB_EXTINT1_PORT, /* port6 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII) |
++		BIT(RTL8365MB_EXT_PORT_MODE_SGMII) |  BIT(RTL8365MB_EXT_PORT_MODE_HSGMII)
++	},
++	{RTL8365MB_EXTINT2_PORT, /* port7 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII)
++	},
++	{RTL8365MB_UNUSED_PORT}, /* port8 */
++	{RTL8365MB_UNUSED_PORT}, /* port9 */
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8367s_ports[]  = {
++	{RTL8365MB_USER_PORT},   /* port0 */
++	{RTL8365MB_USER_PORT},   /* port1 */
++	{RTL8365MB_USER_PORT},   /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_USER_PORT},   /* port4 */
++	{RTL8365MB_UNUSED_PORT}, /* port5 */
++	{RTL8365MB_EXTINT1_PORT, /* port6 */
++		BIT(RTL8365MB_EXT_PORT_MODE_SGMII) |  BIT(RTL8365MB_EXT_PORT_MODE_HSGMII)
++	},
++	{RTL8365MB_EXTINT2_PORT, /* port7 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII)
++	},
++	{RTL8365MB_UNUSED_PORT}, /* port8 */
++	{RTL8365MB_UNUSED_PORT}, /* port9 */
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8366sc_ports[]  = {
++	{RTL8365MB_USER_PORT},   /* port0 */
++	{RTL8365MB_USER_PORT},   /* port1 */
++	{RTL8365MB_USER_PORT},   /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_UNUSED_PORT}, /* port4 */
++	{RTL8365MB_UNUSED_PORT}, /* port5 */
++	{RTL8365MB_EXTINT1_PORT, /* port6 */
++		BIT(RTL8365MB_EXT_PORT_MODE_SGMII) |  BIT(RTL8365MB_EXT_PORT_MODE_HSGMII)
++	},
++	{RTL8365MB_EXTINT2_PORT, /* port7 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII)
++	},
++	{RTL8365MB_UNUSED_PORT}, /* port8 */
++	{RTL8365MB_UNUSED_PORT}, /* port9 */
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8363sc_ports[]  = {
++	{RTL8365MB_UNUSED_PORT}, /* port0 */
++	{RTL8365MB_UNUSED_PORT}, /* port1 */
++	{RTL8365MB_USER_PORT},   /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_UNUSED_PORT}, /* port4 */
++	{RTL8365MB_UNUSED_PORT}, /* port5 */
++	{RTL8365MB_EXTINT1_PORT, /* port6 */
++		BIT(RTL8365MB_EXT_PORT_MODE_SGMII) |  BIT(RTL8365MB_EXT_PORT_MODE_HSGMII)
++	},
++	{RTL8365MB_UNUSED_PORT}, /* port7 */
++	{RTL8365MB_UNUSED_PORT}, /* port8 */
++	{RTL8365MB_UNUSED_PORT}, /* port9 */
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8370mb_ports[]  = {
++	{RTL8365MB_USER_PORT},   /* port0 */
++	{RTL8365MB_USER_PORT},   /* port1 */
++	{RTL8365MB_USER_PORT},   /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_USER_PORT},   /* port4 */
++	{RTL8365MB_USER_PORT},   /* port5 */
++	{RTL8365MB_USER_PORT},   /* port6 */
++	{RTL8365MB_USER_PORT},   /* port7 */
++	{RTL8365MB_EXTINT1_PORT, /* port8 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII) |
++		BIT(RTL8365MB_EXT_PORT_MODE_SGMII)
++	},
++	{RTL8365MB_EXTINT2_PORT, /* port9 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII) |
++		BIT(RTL8365MB_EXT_PORT_MODE_SGMII) |  BIT(RTL8365MB_EXT_PORT_MODE_HSGMII)
++	},
++};
++
++static const struct rtl8365mb_port_desc rtl8365mb_rtl8310sr_ports[]  = {
++	{RTL8365MB_USER_PORT},   /* port0 */
++	{RTL8365MB_USER_PORT},   /* port1 */
++	{RTL8365MB_USER_PORT},   /* port2 */
++	{RTL8365MB_USER_PORT},   /* port3 */
++	{RTL8365MB_USER_PORT},   /* port4 */
++	{RTL8365MB_USER_PORT},   /* port5 */
++	{RTL8365MB_USER_PORT},   /* port6 */
++	{RTL8365MB_USER_PORT},   /* port7 */
++	{RTL8365MB_EXTINT1_PORT, /* port8 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII) |
++		BIT(RTL8365MB_EXT_PORT_MODE_SGMII)
++	},
++	{RTL8365MB_EXTINT2_PORT, /* port9 */
++		BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_MII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_TMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_TMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC) | BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY) |
++		BIT(RTL8365MB_EXT_PORT_MODE_RGMII)
++	},
++};
++
++/* *-vb versions (vb = version b?) are identical to non-vb versions */
++#define rtl8365mb_rtl8363nb_vb_ports rtl8365mb_rtl8363nb_ports
++#define rtl8365mb_rtl8364nb_vb_ports rtl8365mb_rtl8364nb_ports
++#define rtl8365mb_rtl8363sc_vb_ports rtl8365mb_rtl8363sc_ports
++
+ /**
+  * struct rtl8365mb_port - private per-port data
+  * @priv: pointer to parent realtek_priv data
+@@ -594,6 +821,7 @@ struct rtl8365mb_port {
+  * @ports: per-port data
+  * @jam_table: chip-specific initialization jam table
+  * @jam_size: size of the chip's jam table
++ * @port_desc: switch port description
+  *
+  * Private data for this driver.
+  */
+@@ -609,8 +837,45 @@ struct rtl8365mb {
+ 	struct rtl8365mb_port ports[RTL8365MB_MAX_NUM_PORTS];
+ 	const struct rtl8365mb_jam_tbl_entry *jam_table;
+ 	size_t jam_size;
++	const struct rtl8365mb_port_desc *ports_desc;
+ };
+ 
++static inline int rtl8365mb_port_valid(struct realtek_priv *priv, int port)
++{
++	struct rtl8365mb *mb = priv->chip_data;
++
++	if (port < 0)
++		return 0;
++
++	if (port >= RTL8365MB_MAX_NUM_PORTS)
++		return 0;
++
++	switch (mb->ports_desc[port].type) {
++	case RTL8365MB_USER_PORT:
++	case RTL8365MB_EXTINT1_PORT:
++	case RTL8365MB_EXTINT2_PORT:
++		return 1;
++	}
++
++	return 0;
++}
++
++static inline int rtl8365mb_extint_port(struct realtek_priv *priv, int port)
++{
++	struct rtl8365mb *mb = priv->chip_data;
++
++	if (!rtl8365mb_port_valid(priv, port))
++		return -1;
++
++	switch (mb->ports_desc[port].type) {
++	case RTL8365MB_EXTINT1_PORT:
++		return 1;
++	case RTL8365MB_EXTINT2_PORT:
++		return 2;
++	}
++	return -1;
++}
++
+ static int rtl8365mb_phy_poll_busy(struct realtek_priv *priv)
+ {
+ 	u32 val;
+@@ -831,7 +1096,7 @@ static int rtl8365mb_ext_config_rgmii(struct realtek_priv *priv, int port,
+ 	u32 val;
+ 	int ret;
+ 
+-	ext_int = rtl8365mb_extint_port_map[port];
++	ext_int = rtl8365mb_extint_port(priv, port);
+ 
+ 	if (ext_int <= 0) {
+ 		dev_err(priv->dev, "Port %d is not an external interface port\n", port);
+@@ -917,7 +1182,7 @@ static int rtl8365mb_ext_config_forcemode(struct realtek_priv *priv, int port,
+ 	int val;
+ 	int ret;
+ 
+-	ext_int = rtl8365mb_extint_port_map[port];
++	ext_int = rtl8365mb_extint_port(priv, port);
+ 
+ 	if (ext_int <= 0) {
+ 		dev_err(priv->dev, "Port %d is not an external interface port\n", port);
+@@ -981,20 +1246,58 @@ static int rtl8365mb_ext_config_forcemode(struct realtek_priv *priv, int port,
+ static bool rtl8365mb_phy_mode_supported(struct dsa_switch *ds, int port,
+ 					 phy_interface_t interface)
+ {
+-	int ext_int;
++	struct realtek_priv *priv = ds->priv;
++	struct rtl8365mb *mb;
+ 
+-	ext_int = rtl8365mb_extint_port_map[port];
++	mb = priv->chip_data;
+ 
+-	if (ext_int < 0 &&
+-	    (interface == PHY_INTERFACE_MODE_NA ||
+-	     interface == PHY_INTERFACE_MODE_INTERNAL ||
+-	     interface == PHY_INTERFACE_MODE_GMII))
+-		/* Internal PHY */
+-		return true;
+-	else if ((ext_int >= 1) &&
+-		 phy_interface_mode_is_rgmii(interface))
+-		/* Extension MAC */
+-		return true;
++	switch (mb->ports_desc[port].type) {
++	case RTL8365MB_USER_PORT:
++		if (interface == PHY_INTERFACE_MODE_NA ||
++		    interface == PHY_INTERFACE_MODE_INTERNAL ||
++		    interface == PHY_INTERFACE_MODE_GMII)
++			/* Internal PHY */
++			return true;
++		break;
++
++	case RTL8365MB_EXTINT1_PORT:
++	case RTL8365MB_EXTINT2_PORT:
++		if (phy_interface_mode_is_rgmii(interface))
++			interface = PHY_INTERFACE_MODE_RGMII;
++
++		switch (interface) {
++		case PHY_INTERFACE_MODE_RGMII:
++			return FIELD_GET(BIT(RTL8365MB_EXT_PORT_MODE_RGMII),
++					 mb->ports_desc[port].ext_modes);
++		/* Not implemented yet
++		case PHY_INTERFACE_MODE_MII:
++			return FIELD_GET(BIT(RTL8365MB_EXT_PORT_MODE_MII_MAC),
++					 mb->ports_desc[port].ext_modes);
++		case PHY_INTERFACE_MODE_RMII:
++			return FIELD_GET(BIT(RTL8365MB_EXT_PORT_MODE_RMII_MAC),
++					 mb->ports_desc[port].ext_modes);
++		case PHY_INTERFACE_MODE_REVRMII:
++			return FIELD_GET(BIT(RTL8365MB_EXT_PORT_MODE_RMII_PHY),
++					 mb->ports_desc[port].ext_modes);
++		case PHY_INTERFACE_MODE_SGMII:
++			return FIELD_GET(BIT(RTL8365MB_EXT_PORT_MODE_SGMII),
++					 mb->ports_desc[port].ext_modes);
++		case PHY_INTERFACE_MODE_SGMII:
++			return FIELD_GET(BIT(RTL8365MB_EXT_PORT_MODE_SGMII),
++					 mb->ports_desc[port].ext_modes);
++		case PHY_INTERFACE_MODE_1000BASEX:
++			return FIELD_GET(BIT(RTL8365MB_EXT_PORT_MODE_1000X),
++					 mb->ports_desc[port].ext_modes);
++		case PHY_INTERFACE_MODE_GMII:
++			return FIELD_GET(BIT(RTL8365MB_EXT_PORT_MODE_GMII),
++					 mb->ports_desc[port].ext_modes);
++		case PHY_INTERFACE_MODE_100BASEX:
++			return FIELD_GET(BIT(RTL8365MB_EXT_PORT_MODE_100FX),
++					 mb->ports_desc[port].ext_modes);
++		*/
++		default: /* until app modes are defined */;
++		}
++	}
+ 
+ 	return false;
+ }
+@@ -1925,6 +2228,11 @@ static int rtl8365mb_setup(struct dsa_switch *ds)
+ 
+ 		if (dsa_is_unused_port(priv->ds, i))
+ 			continue;
++		if (!rtl8365mb_port_valid(priv, i)) {
++			dev_dbg(priv->dev, "Port '%d' is not present in this switch version.\n", i);
++			goto out_teardown_irq;
++		}
++
+ 
+ 		/* Forward only to the CPU */
+ 		ret = rtl8365mb_port_set_isolation(priv, i, cpu->mask);
+@@ -2030,16 +2338,19 @@ static int rtl8365mb_detect(struct realtek_priv *priv)
+ 			dev_info(priv->dev,
+ 				 "found an RTL8365MB-VC switch (ver=0x%04x)\n",
+ 				 chip_ver);
++			mb->ports_desc = rtl8365mb_rtl8365mb_vc_ports;
+ 			break;
+ 		case RTL8365MB_CHIP_VER_8367RB:
+ 			dev_info(priv->dev,
+ 				 "found an RTL8367RB-VB switch (ver=0x%04x)\n",
+ 				 chip_ver);
++			mb->ports_desc = rtl8365mb_rtl8367rb_vb_ports;
+ 			break;
+ 		case RTL8365MB_CHIP_VER_8367S:
+ 			dev_info(priv->dev,
+ 				 "found an RTL8367S switch (ver=0x%04x)\n",
+ 				 chip_ver);
++			mb->ports_desc = rtl8365mb_rtl8367s_ports;
+ 			break;
+ 		default:
+ 			dev_err(priv->dev, "unrecognized switch version (ver=0x%04x)",
+-- 
+2.35.1
+

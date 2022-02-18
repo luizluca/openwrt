@@ -1,0 +1,49 @@
+From f8c0498e3bd1ce6bd1fe9b3ff0389c499a7c75f2 Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Fri, 11 Feb 2022 01:53:23 -0300
+Subject: [PATCH 9902/9908] net: dsa: OF-ware slave_mii_bus
+
+If found, register the DSA internally allocated slave_mii_bus with an OF
+"mdio" child object. It can save some drivers from creating their
+custom internal MDIO bus.
+
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ net/dsa/dsa2.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/net/dsa/dsa2.c b/net/dsa/dsa2.c
+index d5f21a770689..f75430ee0286 100644
+--- a/net/dsa/dsa2.c
++++ b/net/dsa/dsa2.c
+@@ -13,6 +13,7 @@
+ #include <linux/slab.h>
+ #include <linux/rtnetlink.h>
+ #include <linux/of.h>
++#include <linux/of_mdio.h>
+ #include <linux/of_net.h>
+ #include <net/devlink.h>
+ #include <net/sch_generic.h>
+@@ -882,6 +883,7 @@ static int dsa_switch_setup_tag_protocol(struct dsa_switch *ds)
+ static int dsa_switch_setup(struct dsa_switch *ds)
+ {
+ 	struct dsa_devlink_priv *dl_priv;
++	struct device_node *dn;
+ 	struct dsa_port *dp;
+ 	int err;
+ 
+@@ -937,7 +939,10 @@ static int dsa_switch_setup(struct dsa_switch *ds)
+ 
+ 		dsa_slave_mii_bus_init(ds);
+ 
+-		err = mdiobus_register(ds->slave_mii_bus);
++		dn = of_get_child_by_name(ds->dev->of_node, "mdio");
++
++		err = of_mdiobus_register(ds->slave_mii_bus, dn);
++		of_node_put(dn);
+ 		if (err < 0)
+ 			goto free_slave_mii_bus;
+ 	}
+-- 
+2.35.1
+

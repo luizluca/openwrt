@@ -1,0 +1,68 @@
+From 4dea55b78217e8e4ce043a50439256ecf24a73ea Mon Sep 17 00:00:00 2001
+From: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Date: Tue, 8 Feb 2022 01:57:55 -0300
+Subject: [PATCH 9900/9908] net: dsa: realtek: add compatible strings for
+ RTL8367RB-VB
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+RTL8367RB-VB was not mentioned in the compatible table, nor in the
+Kconfig help text.
+
+The driver still detects the variant by itself and ignores which
+compatible string was used to select it. So, any compatible string will
+work for any compatible model.
+
+Reported-by: Arınç ÜNAL <arinc.unal@arinc9.com>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/Kconfig        | 3 ++-
+ drivers/net/dsa/realtek/realtek-mdio.c | 1 +
+ drivers/net/dsa/realtek/realtek-smi.c  | 4 ++++
+ 3 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/dsa/realtek/Kconfig b/drivers/net/dsa/realtek/Kconfig
+index b7427a8292b2..8eb5148bcc00 100644
+--- a/drivers/net/dsa/realtek/Kconfig
++++ b/drivers/net/dsa/realtek/Kconfig
+@@ -29,7 +29,8 @@ config NET_DSA_REALTEK_RTL8365MB
+ 	depends on NET_DSA_REALTEK_SMI || NET_DSA_REALTEK_MDIO
+ 	select NET_DSA_TAG_RTL8_4
+ 	help
+-	  Select to enable support for Realtek RTL8365MB-VC and RTL8367S.
++	  Select to enable support for Realtek RTL8365MB-VC, RTL8367RB-VB
++	  and RTL8367S.
+ 
+ config NET_DSA_REALTEK_RTL8366RB
+ 	tristate "Realtek RTL8366RB switch subdriver"
+diff --git a/drivers/net/dsa/realtek/realtek-mdio.c b/drivers/net/dsa/realtek/realtek-mdio.c
+index 31e1f100e48e..a36b0d8f17ff 100644
+--- a/drivers/net/dsa/realtek/realtek-mdio.c
++++ b/drivers/net/dsa/realtek/realtek-mdio.c
+@@ -267,6 +267,7 @@ static const struct of_device_id realtek_mdio_of_match[] = {
+ #endif
+ #if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8365MB)
+ 	{ .compatible = "realtek,rtl8365mb", .data = &rtl8365mb_variant, },
++	{ .compatible = "realtek,rtl8367rb", .data = &rtl8365mb_variant, },
+ 	{ .compatible = "realtek,rtl8367s", .data = &rtl8365mb_variant, },
+ #endif
+ 	{ /* sentinel */ },
+diff --git a/drivers/net/dsa/realtek/realtek-smi.c b/drivers/net/dsa/realtek/realtek-smi.c
+index 2243d3da55b2..c2200bd23448 100644
+--- a/drivers/net/dsa/realtek/realtek-smi.c
++++ b/drivers/net/dsa/realtek/realtek-smi.c
+@@ -556,6 +556,10 @@ static const struct of_device_id realtek_smi_of_match[] = {
+ 		.compatible = "realtek,rtl8365mb",
+ 		.data = &rtl8365mb_variant,
+ 	},
++	{
++		.compatible = "realtek,rtl8367rb",
++		.data = &rtl8365mb_variant,
++	},
+ 	{
+ 		.compatible = "realtek,rtl8367s",
+ 		.data = &rtl8365mb_variant,
+-- 
+2.35.1
+
