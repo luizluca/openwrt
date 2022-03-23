@@ -151,9 +151,8 @@ $(eval $(call KernelPackage,switch-dsa))
 
 define KernelPackage/switch-realtek
   TITLE:=Realtek DSA switch support (rtl8366rb, rtl8367s, rtl8365mb)
-  DEPENDS:=@TARGET_ramips +kmod-phy-realtek
+  DEPENDS:=@TARGET_ramips +kmod-phy-realtek +kmod-switch-dsa
   KCONFIG:= \
-	CONFIG_NET_DSA \
 	CONFIG_NET_DSA_REALTEK \
 	CONFIG_NET_DSA_REALTEK_RTL8365MB \
 	CONFIG_NET_DSA_REALTEK_RTL8366RB \
