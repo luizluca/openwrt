@@ -134,6 +134,21 @@ endef
 
 $(eval $(call KernelPackage,sound-mt7620))
 
+define KernelPackage/switch-dsa
+  TITLE:=DSA switch support
+  DEPENDS:=@TARGET_ramips +kmod-phylink
+  KCONFIG:= \
+	CONFIG_NET_DSA
+  FILES:= \
+	$(LINUX_DIR)/net/dsa/dsa_core.ko
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+endef
+
+define KernelPackage/switch-dsa/description
+  DSA Core module
+endef
+$(eval $(call KernelPackage,switch-dsa))
+
 define KernelPackage/switch-realtek
   TITLE:=Realtek DSA switch support (rtl8366rb, rtl8367s, rtl8365mb)
   DEPENDS:=@TARGET_ramips +kmod-phy-realtek
