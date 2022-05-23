@@ -433,6 +433,66 @@ endef
 $(eval $(call KernelPackage,switch-ip17xx))
 
 
+define KernelPackage/switch-realtek
+  TITLE:=Realtek DSA switch support (rtl8366rb, rtl8365mb families)
+  DEPENDS:=@!LINUX_5_10 +kmod-phy-realtek +kmod-switch-dsa +kmod-regmap-core
+  KCONFIG:= \
+	CONFIG_NET_DSA_REALTEK \
+	CONFIG_NET_DSA_REALTEK_RTL8365MB \
+	CONFIG_NET_DSA_REALTEK_RTL8366RB \
+	CONFIG_NET_DSA_TAG_RTL4_A \
+	CONFIG_NET_DSA_TAG_RTL8_4
+  FILES:= \
+	$(LINUX_DIR)/net/dsa/tag_rtl8_4.ko \
+	$(LINUX_DIR)/drivers/net/dsa/realtek/rtl8365mb.ko \
+	$(LINUX_DIR)/net/dsa/tag_rtl4_a.ko \
+	$(LINUX_DIR)/drivers/net/dsa/realtek/rtl8366.ko
+  AUTOLOAD:=$(call AutoLoad,43,tag_rtl8_4 tag_rtl4_a,1)
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+endef
+
+define KernelPackage/switch-realtek/description
+  Realtek DSA Switch support for rtl8366rb family, and rtl8365mb
+  family (RTL8365MB-VC, RTL8367RB-VB and RTL8367S).
+
+  Used by switch-realtek-mdio or switch-realtek-smi
+endef
+
+$(eval $(call KernelPackage,switch-realtek))
+
+
+define KernelPackage/switch-realtek-mdio
+  TITLE:=Realtek MDIO-connected DSA switch support
+  DEPENDS:=@TARGET_ramips +kmod-switch-realtek
+  KCONFIG:= CONFIG_NET_DSA_REALTEK_MDIO
+  FILES:= $(LINUX_DIR)/drivers/net/dsa/realtek/realtek-mdio.ko
+  AUTOLOAD:=$(call AutoLoad,43,realtek-mdio,1)
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+endef
+
+define KernelPackage/switch-realtek-mdio/description
+  Realtek driver for MDIO-connected switches
+endef
+
+$(eval $(call KernelPackage,switch-realtek-mdio))
+
+
+define KernelPackage/switch-realtek-smi
+  TITLE:=Realtek SMI-connected DSA switch support
+  DEPENDS:=@TARGET_ramips +kmod-switch-realtek
+  KCONFIG:= CONFIG_NET_DSA_REALTEK_SMI
+  FILES:= $(LINUX_DIR)/drivers/net/dsa/realtek/realtek-smi.ko
+  AUTOLOAD:=$(call AutoLoad,43,realtek-smi,1)
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+endef
+
+define KernelPackage/switch-realtek-smi/description
+  Realtek driver for SMI-connected switches
+endef
+
+$(eval $(call KernelPackage,switch-realtek-smi))
+
+
 define KernelPackage/switch-rtl8306
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   TITLE:=Realtek RTL8306S switch support
