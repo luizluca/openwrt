@@ -403,6 +403,20 @@ endef
 $(eval $(call KernelPackage,switch-bcm53xx-mdio))
 
 
+define KernelPackage/switch-dsa
+  TITLE:=DSA switch support
+  DEPENDS:=+kmod-phylink +kmod-of-mdio +kmod-net-selftests
+  KCONFIG:=CONFIG_NET_DSA
+  FILES:=$(LINUX_DIR)/net/dsa/dsa_core.ko
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+endef
+
+define KernelPackage/switch-dsa/description
+  DSA Core module
+endef
+$(eval $(call KernelPackage,switch-dsa))
+
+
 define KernelPackage/switch-ip17xx
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   TITLE:=IC+ IP17XX switch support
