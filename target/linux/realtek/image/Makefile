@@ -16,6 +16,21 @@ define Build/zyxel-vers
        done ) >> $@
 endef
 
+define Build/dlink-headers
+        dd if=$@ bs=$(DLINK_KERNEL_PART_SIZE) count=1 of=$@.kernel_part; \
+        dd if=$@ bs=$(DLINK_KERNEL_PART_SIZE) skip=1 of=$@.rootfs_part; \
+        $(SCRIPT_DIR)/cameo-imghdr.py $@.kernel_part $@.kernel_part.hex \
+                ${DEVICE_MODEL} os ${CAMEO_KERNEL_PART} \
+                ${CAMEO_CUSTOMER_SIGNATURE} \
+                ${CAMEO_BOARD_VERSION} \
+                $(KERNEL_LOADADDR); \
+        $(SCRIPT_DIR)/cameo-imghdr.py $@.rootfs_part $@.rootfs_part.hex \
+                ${DEVICE_MODEL} squashfs ${CAMEO_ROOTFS_PART} \
+                ${CAMEO_CUSTOMER_SIGNATURE} \
+                ${CAMEO_BOARD_VERSION}; \
+        cat $@.kernel_part.hex $@.rootfs_part.hex > $@
+endef
+
 define Device/Default
   PROFILES = Default
   KERNEL := kernel-bin | append-dtb | gzip | uImage gzip
