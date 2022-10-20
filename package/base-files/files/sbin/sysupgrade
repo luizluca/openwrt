@@ -25,6 +25,7 @@ export HELP=0
 export FORCE=0
 export TEST=0
 export UMOUNT_ETCBACKUP_DIR=0
+export INTERNAL_OVERLAY_DIR=
 
 # parse options
 while [ -n "$1" ]; do
@@ -35,6 +36,7 @@ while [ -n "$1" ]; do
 		-n) export SAVE_CONFIG=0;;
 		-c) export SAVE_OVERLAY=1 SAVE_OVERLAY_PATH=/etc;;
 		-o) export SAVE_OVERLAY=1 SAVE_OVERLAY_PATH=/;;
+		-O) export INTERNAL_OVERLAY_DIR="$2"; shift;;
 		-p) export SAVE_PARTITIONS=0;;
 		-k) export SAVE_INSTALLED_PKGS=1;;
 		-u) export SKIP_UNCHANGED=1;;
@@ -78,6 +80,9 @@ upgrade-option:
 	-p           do not attempt to restore the partition table after flash.
 	-k           include in backup a list of current installed packages at
 	             $INSTALLED_PACKAGES
+	-O           the path to the interval overlay when -k is used with extroot.
+	             It will inform on which overlay each package is installed.
+	             overlay is mounted. it adds an extra info to the -k list.
 	-T | --test
 	             Verify image and config .tar.gz but do not actually flash.
 	-F | --force
@@ -246,10 +251,16 @@ do_save_conffiles() {
 				ask_bool 0 "Abort" && exit
 			}
 
-		# Format: pkg-name<TAB>{rom,overlay,unknown}
+		# Format: pkg-name<TAB>{rom,overlay,unknown}<TAB>[internal|external|internal+external]
 		# rom is used for pkgs in /rom, even if updated later
 		find /usr/lib/opkg/info -name "*.control" \( \
 			\( -exec test -f /rom/{} \; -exec echo {} rom \; \) -o \
+			${INTERNAL_OVERLAY_DIR:+
+				\( -exec test -f /overlay/upper/\{\} \; -exec test -f $INTERNAL_OVERLAY_DIR/upper/\{\} \; \
+					-exec echo \{\} overlay internal+external \; \) -o \
+				\( -exec test -f $INTERNAL_OVERLAY_DIR/upper/\{\} \; -exec echo \{\} overlay internal \; \) -o \
+				\( -exec test -f /overlay/upper/\{\} \; -exec echo \{\} overlay external \; \) -o \
+			} \
 			\( -exec test -f /overlay/upper/{} \; -exec echo {} overlay \; \) -o \
 			\( -exec echo {} unknown \; \) \
 			\) | sed -e 's,.*/,,;s/\.control /\t/' > ${INSTALLED_PACKAGES}
