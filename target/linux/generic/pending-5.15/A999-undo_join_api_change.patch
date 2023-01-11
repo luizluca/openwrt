@@ -1,0 +1,53 @@
+--- linux-5.15.85/drivers/net/dsa/realtek/rtl8365mb.c.orig	2023-01-04 01:13:49.094880565 -0300
++++ linux-5.15.85/drivers/net/dsa/realtek/rtl8365mb.c	2023-01-04 01:18:01.833941058 -0300
+@@ -1125,11 +1125,12 @@ static int rtl8365mb_max_mtu(struct dsa_
+ }
+ 
+ static int
+ rtl8365mb_port_bridge_join(struct dsa_switch *ds, int port,
+-			   struct dsa_bridge bridge,
++/*			   struct dsa_bridge bridge,
+ 			   bool *tx_fwd_offload,
+-			   struct netlink_ext_ack *extack)
++			   struct netlink_ext_ack *extack)*/
++			   struct net_device *bridge)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+ 	unsigned int port_bitmap = 0;
+ 	struct dsa_port *dp;
+@@ -1140,9 +1141,10 @@ rtl8365mb_port_bridge_join(struct dsa_sw
+ 		if (port == dp->index)
+ 			continue;
+ 
+ 		/* Not on this bridge */
+-		if (!dsa_port_offloads_bridge(dp, &bridge))
++		/*if (!dsa_port_offloads_bridge(dp, &bridge))*/
++		if (dsa_to_port(ds, dp->index)->bridge_dev != bridge)
+ 			continue;
+ 
+ 		/* Join this port to each other port on the bridge */
+ 		ret = regmap_update_bits(priv->map,
+@@ -1161,9 +1163,10 @@ rtl8365mb_port_bridge_join(struct dsa_sw
+ }
+ 
+ static void
+ rtl8365mb_port_bridge_leave(struct dsa_switch *ds, int port,
+-			    struct dsa_bridge bridge)
++			    /*struct dsa_bridge bridge)*/
++			    struct net_device *bridge)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+ 	unsigned int port_bitmap = 0;
+ 	struct dsa_port *dp;
+@@ -1174,9 +1177,10 @@ rtl8365mb_port_bridge_leave(struct dsa_s
+ 		if (port == dp->index)
+ 			continue;
+ 
+ 		/* Not on this bridge */
+-		if (!dsa_port_offloads_bridge(dp, &bridge))
++		/*if (!dsa_port_offloads_bridge(dp, &bridge))*/
++		if (dsa_to_port(ds, dp->index)->bridge_dev != bridge)
+ 			continue;
+ 
+ 		/* Remove this port from any other port on the bridge */
+ 		ret = regmap_update_bits(priv->map,
