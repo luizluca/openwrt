@@ -240,6 +240,22 @@ endef
 $(eval $(call KernelPackage,phy-amd))
 
 
+define KernelPackage/phy-at803x
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+  TITLE:=Qualcomm Atheros 8337 internal PHY
+  KCONFIG:=CONFIG_AT803X_PHY
+  DEPENDS:=+kmod-libphy
+  FILES:=$(LINUX_DIR)/drivers/net/phy/at803x.ko
+  AUTOLOAD:=$(call AutoLoad,44,at803x,1)
+endef
+
+define KernelPackage/phy-at803x/description
+  Qualcomm Atheros 8337 internal PHY
+endef
+
+$(eval $(call KernelPackage,phy-at803x))
+
+
 define KernelPackage/phy-ax88796b
    SUBMENU:=$(NETWORK_DEVICES_MENU)
    TITLE:=Asix PHY driver
