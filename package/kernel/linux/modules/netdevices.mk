@@ -450,6 +450,26 @@ endef
 $(eval $(call KernelPackage,switch-ip17xx))
 
 
+define KernelPackage/switch-qca8k
+  SUBMENU:=$(NETWORK_DEVICES_MENU)
+  TITLE:=Qualcomm Atheros QCA8K Ethernet switch family DSA support
+  DEPENDS:=+kmod-switch-dsa
+  KCONFIG:=CONFIG_NET_DSA_QCA8K \
+	   CONFIG_NET_DSA_QCA8K_LEDS_SUPPORT=y \
+	   CONFIG_NET_DSA_TAG_QCA
+  FILES:=\
+	 $(LINUX_DIR)/drivers/net/dsa/qca/qca8k.ko \
+	 $(LINUX_DIR)/net/dsa/tag_qca.ko
+  AUTOLOAD:=$(call AutoLoad,43,tag_qca qca8k,1)
+endef
+
+define KernelPackage/switch-qca8k/description
+ Qualcomm Atheros QCA8K Ethernet switch family DSA support
+endef
+
+$(eval $(call KernelPackage,switch-qca8k))
+
+
 define KernelPackage/switch-rtl8306
   SUBMENU:=$(NETWORK_DEVICES_MENU)
   TITLE:=Realtek RTL8306S switch support
