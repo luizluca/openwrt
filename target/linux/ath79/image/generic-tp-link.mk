@@ -190,7 +190,7 @@ define Device/tplink_archer-c7-v4
   DEVICE_MODEL := Archer C7
   DEVICE_VARIANT := v4
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k-ct \
-	ath10k-firmware-qca988x-ct
+	ath10k-firmware-qca988x-ct -kmod-switch-ip17xx -kmod-phy-at803x
   TPLINK_BOARD_ID := ARCHER-C7-V4
   SUPPORTED_DEVICES += archer-c7-v4
 endef
