@@ -249,16 +249,81 @@
 &mdio0 {
 	status = "okay";
 
-	phy0: ethernet-phy@0 {
+	phy_port1: ethernet-phy@0 {
 		reg = <0>;
-		phy-mode = "sgmii";
-		qca,mib-poll-interval = <500>;
+	};
 
-		qca,ar8327-initvals = <
-			0x04 0x80080080 /* PORT0 PAD MODE CTRL */
-			0x7c 0x0000007e /* PORT0_STATUS */
-			0x94 0x00000200 /* PORT6_STATUS */
-			>;
+	phy_port2: ethernet-phy@1 {
+		reg = <1>;
+	};
+
+	phy_port3: ethernet-phy@2 {
+		reg = <2>;
+	};
+
+	phy_port4: ethernet-phy@3 {
+		reg = <3>;
+	};
+
+	phy_port5: ethernet-phy@4 {
+		reg = <4>;
+	};
+
+
+	ethernet-switch@10 {
+		compatible = "qca,qca8337";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		reg = <0x10>;
+
+		ethernet-ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ethernet-port@0 {
+				reg = <0>;
+				label = "cpu";
+				ethernet = <&eth0>;
+				phy-mode = "sgmii";
+				qca,sgmii-rxclk-falling-edge;
+
+				fixed-link {
+					speed = <1000>;
+					full-duplex;
+				};
+			};
+
+			ethernet-port@1 {
+				reg = <1>;
+				label = "wan";
+				phy-handle = <&phy_port1>;
+			};
+
+			ethernet-port@2 {
+				reg = <2>;
+				label = "lan1";
+				phy-handle = <&phy_port2>;
+			};
+
+			ethernet-port@3 {
+				reg = <3>;
+				label = "lan2";
+				phy-handle = <&phy_port3>;
+			};
+
+			ethernet-port@4 {
+				reg = <4>;
+				label = "lan3";
+				phy-handle = <&phy_port4>;
+			};
+
+			ethernet-port@5 {
+				reg = <5>;
+				label = "lan4";
+				phy-handle = <&phy_port5>;
+			};
+		};
 	};
 };
 
@@ -267,10 +332,13 @@
 
 	pll-data = <0x03000101 0x00000101 0x00001919>;
 
-	phy-mode = "sgmii";
 	nvmem-cells = <&macaddr_info_8 0>;
 	nvmem-cell-names = "mac-address";
-	phy-handle = <&phy0>;
+
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+	};
 };
 
 &wmac {
