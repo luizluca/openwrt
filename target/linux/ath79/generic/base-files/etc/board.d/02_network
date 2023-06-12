@@ -149,6 +149,11 @@ ath79_setup_interfaces()
 	ubnt,unifi-ap-outdoor-plus)
 		ucidef_set_interface_lan "eth0 eth1"
 		;;
+	tplink,tl-wdr3600-v1|\
+	tplink,tl-wdr4300-v1|\
+	tplink,tl-wdr4300-v1-il)
+		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "wan"
+		;;
 	asus,pl-ac56)
 		# port 6 (internal) is the power-line port
 		ucidef_add_switch "switch0" \
@@ -400,9 +405,6 @@ ath79_setup_interfaces()
 	tplink,archer-c6-v2-us|\
 	tplink,archer-c7-v4|\
 	tplink,archer-c7-v5|\
-	tplink,tl-wdr3600-v1|\
-	tplink,tl-wdr4300-v1|\
-	tplink,tl-wdr4300-v1-il|\
 	tplink,tl-wdr4310-v1)
 		ucidef_add_switch "switch0" \
 			"0@eth0" "2:lan:1" "3:lan:2" "4:lan:3" "5:lan:4" "1:wan"
