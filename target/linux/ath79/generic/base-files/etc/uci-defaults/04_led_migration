@@ -69,7 +69,7 @@ tplink,tl-wpa8630-v1)
 	;;
 esac
 
-remove_devicename_leds
+remove_devicename_leds qca8k-0.0
 
 migrations_apply system
 
