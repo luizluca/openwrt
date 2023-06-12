@@ -7,8 +7,11 @@ define Device/tplink_archer-a7-v5
   DEVICE_MODEL := Archer A7
   DEVICE_VARIANT := v5
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k-ct \
-	ath10k-firmware-qca988x-ct -kmod-dsa-qca8k
+	ath10k-firmware-qca988x-ct kmod-dsa-qca8k \
+	-kmod-switch-ip17xx -kmod-switch-ar8xxx -swconfig -kmod-swconfig
   TPLINK_BOARD_ID := ARCHER-A7-V5
+  DEVICE_COMPAT_VERSION := 1.1
+  DEVICE_COMPAT_MESSAGE := Config cannot be migrated from swconfig to DSA
 endef
 TARGET_DEVICES += tplink_archer-a7-v5
 
@@ -206,9 +209,12 @@ define Device/tplink_archer-c7-v5
   DEVICE_MODEL := Archer C7
   DEVICE_VARIANT := v5
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k-ct \
-	ath10k-firmware-qca988x-ct -kmod-dsa-qca8k
+	ath10k-firmware-qca988x-ct kmod-dsa-qca8k \
+	-kmod-switch-ip17xx -kmod-switch-ar8xxx -swconfig -kmod-swconfig
   TPLINK_BOARD_ID := ARCHER-C7-V5
   SUPPORTED_DEVICES += archer-c7-v5
+  DEVICE_COMPAT_VERSION := 1.1
+  DEVICE_COMPAT_MESSAGE := Config cannot be migrated from swconfig to DSA
 endef
 TARGET_DEVICES += tplink_archer-c7-v5
 
