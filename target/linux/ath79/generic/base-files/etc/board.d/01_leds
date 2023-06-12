@@ -36,6 +36,19 @@ tplink,tl-wa1201-v2|\
 ubnt,litebeam-m5-xw)
 	ucidef_set_led_netdev "lan" "LAN" "green:lan" "eth0"
 	;;
+tplink,tl-wdr3600-v1|\
+tplink,tl-wdr4300-v1|\
+tplink,tl-wdr4300-v1-il)
+	# rx,tx is ok but not with link in current kernel. It seems to enable offloading
+	# that does not support link (yet). However, link_10,link_100,link_1000 can
+	# replace link and it works with tx rx
+	mode="link_10 link_100 link_1000 tx rx"
+	ucidef_set_led_netdev "wan" "WAN" "qca8k-0.0:00:green:wan" "wan" "$mode"
+	ucidef_set_led_netdev "lan1" "LAN1" "qca8k-0.0:01:green:lan" "lan1" "$mode"
+	ucidef_set_led_netdev "lan2" "LAN2" "qca8k-0.0:02:green:lan" "lan2" "$mode"
+	ucidef_set_led_netdev "lan3" "LAN3" "qca8k-0.0:03:green:lan" "lan3" "$mode"
+	ucidef_set_led_netdev "lan4" "LAN4" "qca8k-0.0:04:green:lan" "lan4" "$mode"
+	;;
 tplink,tl-wdr6500-v2)
 	ucidef_set_led_netdev "wan" "WAN" "green:wan" "eth1"
 	ucidef_set_led_switch "lan1" "LAN1" "green:lan1" "switch0" "0x02"
