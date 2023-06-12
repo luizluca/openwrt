@@ -30,6 +30,17 @@ tplink,cpe610-v2|\
 tplink,tl-wa1201-v2)
 	ucidef_set_led_netdev "lan" "LAN" "green:lan" "eth0"
 	;;
+tplink,tl-wdr3600-v1|\
+tplink,tl-wdr4300-v1|\
+tplink,tl-wdr4300-v1-il)
+	# rx,tx is ok but link is not working with tx,rx in current kernel
+	true
+	#ucidef_set_led_netdev "wan" "WAN" "qca8k-0.0:00:green:wan" "wan"
+	#ucidef_set_led_netdev "lan1" "LAN1" "qca8k-0.0:01:green:lan" "lan1"
+	#ucidef_set_led_netdev "lan2" "LAN2" "qca8k-0.0:02:green:lan" "lan2"
+	#ucidef_set_led_netdev "lan3" "LAN3" "qca8k-0.0:03:green:lan" "lan3"
+	#ucidef_set_led_netdev "lan4" "LAN4" "qca8k-0.0:04:green:lan" "lan4"
+	;;
 tplink,tl-wdr6500-v2)
 	ucidef_set_led_netdev "wan" "WAN" "green:wan" "eth1"
 	ucidef_set_led_switch "lan1" "LAN1" "green:lan1" "switch0" "0x02"
