@@ -61,7 +61,7 @@ ifeq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),y)
     define Kernel/SetInitramfs/PreConfigure
 	grep -v -e INITRAMFS -e CONFIG_RD_ -e CONFIG_BLK_DEV_INITRD $(LINUX_DIR)/.config.old > $(LINUX_DIR)/.config
 	echo 'CONFIG_BLK_DEV_INITRD=y' >> $(LINUX_DIR)/.config
-	echo 'CONFIG_INITRAMFS_SOURCE="$(strip $(TARGET_DIR) $(GENERIC_PLATFORM_DIR)/other-files/ $(INITRAMFS_EXTRA_FILES))"' >> $(LINUX_DIR)/.config
+	echo 'CONFIG_INITRAMFS_SOURCE="$(strip $(1) $(GENERIC_PLATFORM_DIR)/other-files/ $(INITRAMFS_EXTRA_FILES))"' >> $(LINUX_DIR)/.config
     endef
   else
     define Kernel/SetInitramfs/PreConfigure
@@ -74,7 +74,7 @@ endif
   define Kernel/SetInitramfs
 	rm -f $(LINUX_DIR)/.config.prev
 	mv $(LINUX_DIR)/.config $(LINUX_DIR)/.config.old
-	$(call Kernel/SetInitramfs/PreConfigure)
+	$(call Kernel/SetInitramfs/PreConfigure,$(1))
 	echo "# CONFIG_INITRAMFS_PRESERVE_MTIME is not set" >> $(LINUX_DIR)/.config
   ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE),y)
 	echo 'CONFIG_INITRAMFS_ROOT_UID=$(shell id -u)' >> $(LINUX_DIR)/.config
@@ -124,7 +124,7 @@ define Kernel/Configure/Default
 endef
 
 define Kernel/Configure/Initramfs
-	$(call Kernel/SetInitramfs)
+	$(call Kernel/SetInitramfs,$(1))
 endef
 
 define Kernel/CompileModules/Default
@@ -162,14 +162,14 @@ endef
 
 ifneq ($(CONFIG_TARGET_ROOTFS_INITRAMFS),)
 define Kernel/CompileImage/Initramfs
-	$(call Kernel/Configure/Initramfs)
+	$(call Kernel/Configure/Initramfs,$(1))
 	rm -rf $(KERNEL_BUILD_DIR)/linux-$(LINUX_VERSION)/usr/initramfs_data.cpio*
 ifeq ($(CONFIG_TARGET_ROOTFS_INITRAMFS_SEPARATE),y)
 ifneq ($(qstrip $(CONFIG_EXTERNAL_CPIO)),)
 	$(CP) $(CONFIG_EXTERNAL_CPIO) $(KERNEL_BUILD_DIR)/initrd.cpio
 else
 	( true > $(KERNEL_BUILD_DIR)/initrd.cpio;
-	  for rootfs in $(TARGET_DIR) $(GENERIC_PLATFORM_DIR)/other-files/; do
+	  for rootfs in $(1) $(GENERIC_PLATFORM_DIR)/other-files/; do
 		cd "$rootfs"; find . | LC_ALL=C sort | $(STAGING_DIR_HOST)/bin/cpio --reproducible -o -H newc -R 0:0 >> $(KERNEL_BUILD_DIR)/initrd.cpio
 	  done)
 endif
@@ -183,7 +183,7 @@ endif
 	$(if $(CONFIG_TARGET_INITRAMFS_COMPRESSION_ZSTD),$(STAGING_DIR_HOST)/bin/zstd -T0 -f -o $(KERNEL_BUILD_DIR)/initrd.cpio.zstd $(KERNEL_BUILD_DIR)/initrd.cpio)
 endif
 	+$(KERNEL_MAKE) $(KERNEL_MAKEOPTS_IMAGE) $(if $(KERNELNAME),$(KERNELNAME),all)
-	$(call Kernel/CopyImage,-initramfs)
+	$(call Kernel/CopyImage,-initramfs$(2))
 endef
 else
 define Kernel/CompileImage/Initramfs
