@@ -62,7 +62,7 @@ define Device/engenius_enh202-v1
   DEVICE_VENDOR := EnGenius
   DEVICE_MODEL := ENH202
   DEVICE_VARIANT := v1
-  DEVICE_PACKAGES := rssileds
+  DEVICE_PACKAGES := rssileds -kmod-dsa-qca8k
   IMAGE_SIZE := 4928k
   LOADER_FLASH_OFFS := 0x1a0000
   SENAO_IMGNAME := senao-enh202
@@ -73,7 +73,7 @@ define Device/pqi_air-pen
   SOC := ar9330
   DEVICE_VENDOR := PQI
   DEVICE_MODEL := Air-Pen
-  DEVICE_PACKAGES := kmod-usb-chipidea2
+  DEVICE_PACKAGES := kmod-usb-chipidea2 -kmod-dsa-qca8k
   IMAGE_SIZE := 7680k
   SUPPORTED_DEVICES += pqi-air-pen
   DEFAULT := n

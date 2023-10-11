@@ -77,6 +77,7 @@ define Device/Default
   IMAGES := sysupgrade.bin
   IMAGE/sysupgrade.bin = append-kernel | pad-to $$$$(BLOCKSIZE) | \
 	append-rootfs | pad-rootfs | check-size | append-metadata
+  DEVICE_PACKAGES := -kmod-dsa-qca8k
 endef
 
 define Device/loader-okli-uimage

@@ -16,6 +16,7 @@ include $(INCLUDE_DIR)/target.mk
 DEFAULT_PACKAGES += \
 	kmod-gpio-button-hotplug swconfig \
 	kmod-ath9k uboot-envtools \
-	kmod-switch-ar8xxx kmod-ag71xx kmod-phy-at803x
+	kmod-switch-ar8xxx kmod-ag71xx kmod-phy-at803x \
+	kmod-dsa-qca8k
 
 $(eval $(call BuildTarget))

@@ -50,7 +50,7 @@ define Device/8dev_rambutan
   SOC := qca9557
   DEVICE_VENDOR := 8devices
   DEVICE_MODEL := Rambutan
-  DEVICE_PACKAGES := kmod-usb2
+  DEVICE_PACKAGES := kmod-usb2 -kmod-dsa-qca8k
   BLOCKSIZE := 128k
   PAGESIZE := 2048
   KERNEL_SIZE := 4096k
@@ -65,7 +65,7 @@ define Device/aerohive_hiveap-121
   SOC := ar9344
   DEVICE_VENDOR := Aerohive
   DEVICE_MODEL := HiveAP 121
-  DEVICE_PACKAGES := kmod-usb2
+  DEVICE_PACKAGES := kmod-usb2 -kmod-dsa-qca8k
   BLOCKSIZE := 128k
   PAGESIZE := 2048
   IMAGE_SIZE := 116m
@@ -84,7 +84,7 @@ define Device/domywifi_dw33d
   DEVICE_VENDOR := DomyWifi
   DEVICE_MODEL := DW33D
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-storage kmod-usb-ledtrig-usbport \
-	kmod-ath10k-ct ath10k-firmware-qca988x-ct
+	kmod-ath10k-ct ath10k-firmware-qca988x-ct -kmod-dsa-qca8k
   KERNEL_SIZE := 5120k
   IMAGE_SIZE := 98304k
   BLOCKSIZE := 128k
@@ -103,7 +103,7 @@ define Device/dongwon_dw02-412h
   DEVICE_MODEL := DW02-412H
   DEVICE_ALT0_VENDOR := KT
   DEVICE_ALT0_MODEL := GiGA WiFi home
-  DEVICE_PACKAGES := kmod-usb2 kmod-ath10k-ct ath10k-firmware-qca988x-ct
+  DEVICE_PACKAGES := kmod-usb2 kmod-ath10k-ct ath10k-firmware-qca988x-ct -kmod-dsa-qca8k
   KERNEL_SIZE := 8192k
   BLOCKSIZE := 128k
   PAGESIZE := 2048
@@ -136,7 +136,7 @@ define Device/glinet_gl-ar300m-common-nand
   SOC := qca9531
   DEVICE_VENDOR := GL.iNet
   DEVICE_MODEL := GL-AR300M
-  DEVICE_PACKAGES := kmod-usb2
+  DEVICE_PACKAGES := kmod-usb2 -kmod-dsa-qca8k
   KERNEL_SIZE := 4096k
   IMAGE_SIZE := 16000k
   PAGESIZE := 2048
@@ -166,7 +166,7 @@ define Device/glinet_gl-ar750s-common
   DEVICE_VENDOR := GL.iNet
   DEVICE_MODEL := GL-AR750S
   DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca9887-ct kmod-usb2 \
-	kmod-usb-storage block-mount
+	kmod-usb-storage block-mount -kmod-dsa-qca8k
   IMAGE_SIZE := 16000k
 endef
 
@@ -190,7 +190,7 @@ define Device/glinet_gl-e750
   SOC := qca9531
   DEVICE_VENDOR := GL.iNet
   DEVICE_MODEL := GL-E750
-  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca9887-ct kmod-usb2
+  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca9887-ct kmod-usb2 -kmod-dsa-qca8k
   SUPPORTED_DEVICES += gl-e750
   KERNEL_SIZE := 4096k
   IMAGE_SIZE := 131072k
@@ -208,7 +208,7 @@ define Device/glinet_gl-xe300
   DEVICE_VENDOR := GL.iNet
   DEVICE_MODEL := GL-XE300
   DEVICE_PACKAGES := kmod-usb2 block-mount kmod-usb-serial-ch341 \
-	kmod-usb-serial-option kmod-usb-net-qmi-wwan uqmi
+	kmod-usb-serial-option kmod-usb-net-qmi-wwan uqmi -kmod-dsa-qca8k
   KERNEL_SIZE := 4096k
   IMAGE_SIZE := 131072k
   PAGESIZE := 2048
@@ -225,7 +225,7 @@ define Device/glinet_gl-x1200-common
   DEVICE_VENDOR := GL.iNet
   DEVICE_MODEL := GL-X1200
   DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca9888-ct-htt kmod-usb2 \
-	kmod-usb-storage block-mount kmod-usb-net-qmi-wwan uqmi
+	kmod-usb-storage block-mount kmod-usb-net-qmi-wwan uqmi -kmod-dsa-qca8k
   IMAGE_SIZE := 16000k
 endef
 
@@ -254,7 +254,7 @@ define Device/linksys_ea4500-v3
   DEVICE_VENDOR := Linksys
   DEVICE_MODEL := EA4500
   DEVICE_VARIANT := v3
-  DEVICE_PACKAGES := kmod-usb2
+  DEVICE_PACKAGES := kmod-usb2 -kmod-dsa-qca8k
   BLOCKSIZE := 128k
   PAGESIZE := 2048
   KERNEL_SIZE := 4096k
@@ -272,7 +272,7 @@ define Device/meraki_mr18
   SOC := qca9557
   DEVICE_VENDOR := Meraki
   DEVICE_MODEL := MR18
-  DEVICE_PACKAGES := kmod-leds-uleds kmod-spi-gpio nu801
+  DEVICE_PACKAGES := kmod-leds-uleds kmod-spi-gpio nu801 -kmod-dsa-qca8k
   KERNEL_SIZE := 8m
   BLOCKSIZE := 128k
   PAGESIZE := 2048
@@ -288,7 +288,7 @@ TARGET_DEVICES += meraki_mr18
 # fake rootfs is mandatory, pad-offset 129 equals (2 * uimage_header + '\0')
 define Device/netgear_ath79_nand
   DEVICE_VENDOR := NETGEAR
-  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport -kmod-dsa-qca8k
   KERNEL_SIZE := 4096k
   BLOCKSIZE := 128k
   PAGESIZE := 2048
@@ -310,7 +310,7 @@ define Device/netgear_pgzng1
   DEVICE_ALT0_MODEL := Pulse Gateway
   DEVICE_ALT0_VENDOR := ADT
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-i2c-gpio \
-    kmod-leds-pca955x kmod-rtc-isl1208 kmod-spi-dev
+    kmod-leds-pca955x kmod-rtc-isl1208 kmod-spi-dev -kmod-dsa-qca8k
   KERNEL_SIZE := 5120k
   IMAGE_SIZE := 83968k
   PAGESIZE := 2048
@@ -402,7 +402,7 @@ TARGET_DEVICES += netgear_wndr4500-v3
 define Device/zte_mf28x_common
   SOC := qca9563
   DEVICE_VENDOR := ZTE
-  DEVICE_PACKAGES := kmod-usb2 kmod-ath10k-ct
+  DEVICE_PACKAGES := kmod-usb2 kmod-ath10k-ct -kmod-dsa-qca8k
   BLOCKSIZE := 128k
   PAGESIZE := 2048
   KERNEL_SIZE := 4096k
@@ -459,7 +459,7 @@ define Device/zyxel_nbg6716
   DEVICE_VENDOR := ZyXEL
   DEVICE_MODEL := NBG6716
   DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-ath10k-ct \
-	ath10k-firmware-qca988x-ct
+	ath10k-firmware-qca988x-ct -kmod-dsa-qca8k
   RAS_BOARD := NBG6716
   RAS_ROOTFS_SIZE := 29696k
   RAS_VERSION := "OpenWrt Linux-$(LINUX_VERSION)"

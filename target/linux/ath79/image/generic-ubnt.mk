@@ -58,7 +58,7 @@ define Device/ubnt_litebeam-ac-gen2
   $(Device/ubnt-wa)
   DEVICE_MODEL := LiteBeam AC
   DEVICE_VARIANT := Gen2
-  DEVICE_PACKAGES := kmod-ath10k-ct-smallbuffers ath10k-firmware-qca988x-ct
+  DEVICE_PACKAGES := kmod-ath10k-ct-smallbuffers ath10k-firmware-qca988x-ct -kmod-dsa-qca8k
 endef
 TARGET_DEVICES += ubnt_litebeam-ac-gen2
 
@@ -130,7 +130,7 @@ define Device/ubnt_powerbeam-5ac-500
   SOC := qca9558
   DEVICE_MODEL := PowerBeam 5AC
   DEVICE_VARIANT := 500
-  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca988x-ct
+  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca988x-ct -kmod-dsa-qca8k
 endef
 TARGET_DEVICES += ubnt_powerbeam-5ac-500
 
@@ -138,7 +138,7 @@ define Device/ubnt_powerbeam-5ac-gen2
   $(Device/ubnt-wa)
   DEVICE_MODEL := PowerBeam 5AC
   DEVICE_VARIANT := Gen2
-  DEVICE_PACKAGES := kmod-ath10k-ct-smallbuffers ath10k-firmware-qca988x-ct rssileds
+  DEVICE_PACKAGES := kmod-ath10k-ct-smallbuffers ath10k-firmware-qca988x-ct rssileds -kmod-dsa-qca8k
 endef
 TARGET_DEVICES += ubnt_powerbeam-5ac-gen2
 
@@ -172,7 +172,7 @@ define Device/ubnt_rocket-5ac-lite
   SOC := qca9558
   DEVICE_MODEL := Rocket 5AC
   DEVICE_VARIANT := Lite
-  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca988x-ct
+  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca988x-ct -kmod-dsa-qca8k
 endef
 TARGET_DEVICES += ubnt_rocket-5ac-lite
 
@@ -187,7 +187,7 @@ TARGET_DEVICES += ubnt_rocket-m
 
 define Device/ubnt_routerstation_common
   DEVICE_PACKAGES := -kmod-ath9k -wpad-basic-mbedtls -uboot-envtools kmod-usb-ohci \
-	kmod-usb2 fconfig
+	kmod-usb2 fconfig -kmod-dsa-qca8k
   DEVICE_VENDOR := Ubiquiti
   SOC := ar7161
   LOADER_TYPE := bin
@@ -248,7 +248,7 @@ define Device/ubnt_unifiac
   DEVICE_VENDOR := Ubiquiti
   SOC := qca9563
   IMAGE_SIZE := 15488k
-  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca988x-ct
+  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca988x-ct -kmod-dsa-qca8k
 endef
 
 define Device/ubnt_unifiac-lite

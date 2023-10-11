@@ -4,7 +4,7 @@ define Device/tplink_tl-mr10u
   $(Device/tplink-4mlzma)
   SOC := ar9331
   DEVICE_MODEL := TL-MR10U
-  DEVICE_PACKAGES := kmod-usb-chipidea2
+  DEVICE_PACKAGES := kmod-usb-chipidea2 -kmod-dsa-qca8k
   TPLINK_HWID := 0x00100101
   SUPPORTED_DEVICES += tl-mr10u
 endef
@@ -16,7 +16,7 @@ define Device/tplink_tl-mr3020-v1
   SOC := ar9331
   DEVICE_MODEL := TL-MR3020
   DEVICE_VARIANT := v1
-  DEVICE_PACKAGES := kmod-usb-chipidea2 kmod-usb-ledtrig-usbport
+  DEVICE_PACKAGES := kmod-usb-chipidea2 kmod-usb-ledtrig-usbport -kmod-dsa-qca8k
   TPLINK_HWID := 0x30200001
   SUPPORTED_DEVICES += tl-mr3020
 endef
@@ -27,7 +27,7 @@ define Device/tplink_tl-mr3040-v2
   SOC := ar9331
   DEVICE_MODEL := TL-MR3040
   DEVICE_VARIANT := v2
-  DEVICE_PACKAGES := kmod-usb-chipidea2 kmod-usb-ledtrig-usbport
+  DEVICE_PACKAGES := kmod-usb-chipidea2 kmod-usb-ledtrig-usbport -kmod-dsa-qca8k
   TPLINK_HWID := 0x30400002
   SUPPORTED_DEVICES += tl-mr3040-v2
 endef
@@ -39,7 +39,7 @@ define Device/tplink_tl-mr3220-v1
   DEVICE_MODEL := TL-MR3220
   DEVICE_VARIANT := v1
   TPLINK_HWID := 0x32200001
-  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport -kmod-dsa-qca8k
   SUPPORTED_DEVICES += tl-mr3220
 endef
 TARGET_DEVICES += tplink_tl-mr3220-v1
@@ -50,7 +50,7 @@ define Device/tplink_tl-mr3420-v1
   DEVICE_MODEL := TL-MR3420
   DEVICE_VARIANT := v1
   TPLINK_HWID := 0x34200001
-  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport -kmod-dsa-qca8k
   SUPPORTED_DEVICES += tl-mr3420
 endef
 TARGET_DEVICES += tplink_tl-mr3420-v1
@@ -61,7 +61,7 @@ define Device/tplink_tl-mr3420-v2
   DEVICE_MODEL := TL-MR3420
   DEVICE_VARIANT := v2
   TPLINK_HWID := 0x34200002
-  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport -kmod-dsa-qca8k
   SUPPORTED_DEVICES += tl-mr3420-v2
 endef
 TARGET_DEVICES += tplink_tl-mr3420-v2
@@ -72,7 +72,7 @@ define Device/tplink_tl-mr3420-v3
   DEVICE_MODEL := TL-MR3420
   DEVICE_VARIANT := v3
   TPLINK_HWID := 0x34200003
-  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport -kmod-dsa-qca8k
 endef
 TARGET_DEVICES += tplink_tl-mr3420-v3
 
@@ -142,7 +142,7 @@ define Device/tplink_tl-wa850re-v1
   DEVICE_MODEL := TL-WA850RE
   DEVICE_VARIANT := v1
   TPLINK_HWID := 0x08500001
-  DEVICE_PACKAGES := rssileds
+  DEVICE_PACKAGES := rssileds -kmod-dsa-qca8k
   SUPPORTED_DEVICES += tl-wa850re
 endef
 TARGET_DEVICES += tplink_tl-wa850re-v1
@@ -155,7 +155,7 @@ define Device/tplink_tl-wa850re-v2
   DEVICE_VARIANT := v2
   TPLINK_BOARD_ID := TLWA850REV2
   TPLINK_HWID := 0x08500002
-  DEVICE_PACKAGES := rssileds
+  DEVICE_PACKAGES := rssileds -kmod-dsa-qca8k
   SUPPORTED_DEVICES += tl-wa850re-v2
   DEFAULT := n
 endef
@@ -228,7 +228,7 @@ define Device/tplink_tl-wpa8630p-v2
   SOC := qca9563
   DEVICE_MODEL := TL-WPA8630P
   IMAGE_SIZE := 6016k
-  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca9888-ct
+  DEVICE_PACKAGES := kmod-ath10k-ct ath10k-firmware-qca9888-ct -kmod-dsa-qca8k
   DEVICE_COMPAT_VERSION := 2.0
   DEVICE_COMPAT_MESSAGE := The flash erase blocksize has changed to 4k from the 64k in previous versions, \
     so the JFFS2 settings partition MUST be reformatted to avoid data corruption. \
@@ -263,7 +263,7 @@ define Device/tplink_tl-wr703n
   $(Device/tplink-4mlzma)
   SOC := ar9331
   DEVICE_MODEL := TL-WR703N
-  DEVICE_PACKAGES := kmod-usb-chipidea2
+  DEVICE_PACKAGES := kmod-usb-chipidea2 -kmod-dsa-qca8k
   TPLINK_HWID := 0x07030101
   SUPPORTED_DEVICES += tl-wr703n
 endef
