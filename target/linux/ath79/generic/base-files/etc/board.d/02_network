@@ -165,6 +165,7 @@ ath79_setup_interfaces()
 	tplink,archer-c7-v2|\
 	tplink,archer-c7-v4|\
 	tplink,archer-c7-v5|\
+	tplink,tl-wr2543-v1|\
 	tplink,tl-wdr3600-v1|\
 	tplink,tl-wdr4300-v1|\
 	tplink,tl-wdr4300-v1-il|\
@@ -568,10 +569,6 @@ ath79_setup_interfaces()
 	tplink,tl-wr1045nd-v2)
 		ucidef_add_switch "switch0" \
 			"0u@eth1" "1:lan:4" "2:lan:3" "3:lan:2" "4:lan:1" "5:wan" "6u@eth0"
-		;;
-	tplink,tl-wr2543-v1)
-		ucidef_add_switch "switch0" \
-			"1:lan" "2:lan" "3:lan" "4:lan" "0:wan" "9@eth0"
 		;;
 	ubnt,aircube-ac)
 		ucidef_add_switch "switch0" \

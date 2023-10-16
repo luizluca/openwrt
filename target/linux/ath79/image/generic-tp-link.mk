@@ -787,12 +787,15 @@ define Device/tplink_tl-wr2543-v1
   SOC := ar7242
   DEVICE_MODEL := TL-WR2543N/ND
   DEVICE_VARIANT := v1
-  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-switch-rtl8367
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-switch-rtl8367 -kmod-dsa-qca8k kmod-dsa-rtl8365mb \
+	-kmod-switch-rtl8366-smi -kmod-switch-rtl8367
   TPLINK_HWID := 0x25430001
   IMAGE/sysupgrade.bin := tplink-v1-image sysupgrade -v 3.13.99 | \
 	check-size | append-metadata
   IMAGE/factory.bin := tplink-v1-image factory -v 3.13.99
   SUPPORTED_DEVICES += tl-wr2543n
+  DEVICE_COMPAT_VERSION := 1.1
+  DEVICE_COMPAT_MESSAGE := Config cannot be migrated from swconfig to DSA
 endef
 TARGET_DEVICES += tplink_tl-wr2543-v1
 

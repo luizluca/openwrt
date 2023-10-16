@@ -74,19 +74,135 @@
 		};
 	};
 
-	rtl8367 {
-		compatible = "realtek,rtl8367";
-		sda-gpios = <&gpio 1 GPIO_ACTIVE_HIGH>;
-		sck-gpios = <&gpio 6 GPIO_ACTIVE_HIGH>;
-		realtek,extif = <9 1 0 1 1 1 1 1 1 2>;
+	switch {
+		compatible = "realtek,rtl8367r";
+		mdc-gpios = <&gpio 6 GPIO_ACTIVE_HIGH>;
+		mdio-gpios = <&gpio 1 GPIO_ACTIVE_HIGH>;
 
-		mdio-bus {
+		ports {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			status = "okay";
-
-			phy0: ethernet-phy@0 {
+			port@0 {
 				reg = <0>;
+				label = "wan";
+				phy-handle = <&ethphy0>;
+
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_WAN;
+						default-state = "keep";
+					 };
+				};
+
+			};
+			port@1 {
+				reg = <1>;
+				label = "lan1";
+				phy-handle = <&ethphy1>;
+
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_LAN;
+						default-state = "keep";
+					};
+				};
+
+			};
+			port@2 {
+				reg = <2>;
+				label = "lan2";
+				phy-handle = <&ethphy2>;
+
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_LAN;
+						default-state = "keep";
+					};
+				};
+			};
+			port@3 {
+				reg = <3>;
+				label = "lan3";
+				phy-handle = <&ethphy3>;
+
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_LAN;
+						default-state = "keep";
+					};
+				};
+			};
+			port@4 {
+				reg = <4>;
+				label = "lan4";
+				phy-handle = <&ethphy4>;
+
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_LAN;
+						default-state = "keep";
+					};
+				};
+			};
+			port@9 {
+				reg = <9>;
+				ethernet = <&eth0>;
+
+				tx-internal-delay-ps = <2000>;
+				rx-internal-delay-ps = <0>;
+				phy-mode = "rgmii";
+
+				fixed-link {
+					speed = <1000>;
+					full-duplex;
+					pause;
+				};
+			};
+		};
+
+		mdio {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ethphy0: ethernet-phy@0 {
+				reg = <0>;
+			};
+			ethphy1: ethernet-phy@1 {
+				reg = <1>;
+			};
+			ethphy2: ethernet-phy@2 {
+				reg = <2>;
+			};
+			ethphy3: ethernet-phy@3 {
+				reg = <3>;
+			};
+			ethphy4: ethernet-phy@4 {
+				reg = <4>;
 			};
 		};
 	};
@@ -170,12 +286,11 @@
 
 &eth0 {
 	status = "okay";
-
+ 
 	phy-mode = "rgmii";
 	nvmem-cells = <&macaddr_uboot_1fc00>;
 	nvmem-cell-names = "mac-address";
-
-	phy-handle = <&phy0>;
+ 
 	fixed-link {
 		speed = <1000>;
 		full-duplex;
