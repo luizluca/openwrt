@@ -1,0 +1,2547 @@
+diff --git a/Documentation/devicetree/bindings/net/dsa/realtek.yaml b/Documentation/devicetree/bindings/net/dsa/realtek.yaml
+index cce692f57b08..3c9d6038d6af 100644
+--- a/Documentation/devicetree/bindings/net/dsa/realtek.yaml
++++ b/Documentation/devicetree/bindings/net/dsa/realtek.yaml
+@@ -59,6 +59,9 @@ properties:
+     description: GPIO to be used to reset the whole device
+     maxItems: 1
+ 
++  resets:
++    maxItems: 1
++
+   realtek,disable-leds:
+     type: boolean
+     description: |
+@@ -105,6 +108,32 @@ properties:
+       compatible:
+         const: realtek,smi-mdio
+ 
++patternProperties:
++  '^(ethernet-)?ports$':
++    type: object
++    additionalProperties: true
++
++    patternProperties:
++      '^(ethernet-)?port@[0-6]$':
++        type: object
++        additionalProperties: true
++
++        properties:
++          leds:
++            description:
++              "LEDs associated with this port"
++
++            patternProperties:
++              '^led@[a-f0-9]+$':
++                type: object
++                additionalProperties: true
++
++                properties:
++                  reg:
++                    description:
++                      "reg indicates the LED group for this LED"
++                    enum: [0, 1, 2, 3]
++
+ if:
+   required:
+     - reg
+@@ -115,22 +144,19 @@ then:
+     required:
+       - mdc-gpios
+       - mdio-gpios
+-      - mdio
+ 
+   properties:
+     mdc-gpios: false
+     mdio-gpios: false
+-    mdio: false
+ 
+ else:
+   required:
+     - mdc-gpios
+     - mdio-gpios
+-    - mdio
+-    - reset-gpios
+ 
+ required:
+   - compatible
++  - mdio
+ 
+     #  - mdc-gpios
+     #  - mdio-gpios
+@@ -142,6 +168,7 @@ unevaluatedProperties: false
+ examples:
+   - |
+     #include <dt-bindings/gpio/gpio.h>
++    #include <dt-bindings/leds/common.h>
+     #include <dt-bindings/interrupt-controller/irq.h>
+ 
+     platform {
+@@ -188,6 +215,25 @@ examples:
+                                     reg = <4>;
+                                     label = "wan";
+                                     phy-handle = <&phy4>;
++
++                                    leds {
++                                            #address-cells = <1>;
++                                            #size-cells = <0>;
++
++                                            led@0 {
++                                                    reg = <0>;
++                                                    color = <LED_COLOR_ID_GREEN>;
++                                                    function = LED_FUNCTION_WAN;
++                                                    default-state = "keep";
++                                            };
++
++                                            led@3 {
++                                                    reg = <3>;
++                                                    color = <LED_COLOR_ID_AMBER>;
++                                                    function = LED_FUNCTION_WAN;
++                                                    default-state = "keep";
++                                            };
++                                    };
+                             };
+                             port@5 {
+                                     reg = <5>;
+@@ -345,30 +391,34 @@ examples:
+                     ports {
+                             #address-cells = <1>;
+                             #size-cells = <0>;
+-
+                             port@0 {
+                                     reg = <0>;
+                                     label = "lan4";
++                                    phy-handle = <&eth3phy0>;
+                             };
+ 
+                             port@1 {
+                                     reg = <1>;
+                                     label = "lan3";
++                                    phy-handle = <&eth3phy1>;
+                             };
+ 
+                             port@2 {
+                                     reg = <2>;
+                                     label = "lan2";
++                                    phy-handle = <&eth3phy2>;
+                             };
+ 
+                             port@3 {
+                                     reg = <3>;
+                                     label = "lan1";
++                                    phy-handle = <&eth3phy3>;
+                             };
+ 
+                             port@4 {
+                                     reg = <4>;
+                                     label = "wan";
++                                    phy-handle = <&eth3phy4>;
+                             };
+ 
+                             port@7 {
+@@ -384,5 +434,31 @@ examples:
+                                     };
+                             };
+                     };
++
++                    mdio {
++                            #address-cells = <1>;
++                            #size-cells = <0>;
++
++                            eth3phy0: ethernet-phy@0 {
++                                    reg = <0>;
++                                    interrupt-parent = <&switch_intc2>;
++                                    interrupts = <0>;
++                            };
++                            eth3phy1: ethernet-phy@1 {
++                                    reg = <1>;
++                                    interrupt-parent = <&switch_intc2>;
++                                    interrupts = <1>;
++                            };
++                            eth3phy2: ethernet-phy@2 {
++                                    reg = <2>;
++                                    interrupt-parent = <&switch_intc2>;
++                                    interrupts = <2>;
++                            };
++                            eth3phy3: ethernet-phy@3 {
++                                    reg = <3>;
++                                    interrupt-parent = <&switch_intc2>;
++                                    interrupts = <3>;
++                            };
++                    };
+             };
+       };
+diff --git a/drivers/leds/trigger/ledtrig-netdev.c b/drivers/leds/trigger/ledtrig-netdev.c
+index 8e5475819590..1a0cfbba5976 100644
+--- a/drivers/leds/trigger/ledtrig-netdev.c
++++ b/drivers/leds/trigger/ledtrig-netdev.c
+@@ -277,7 +277,10 @@ static int set_device_name(struct led_netdev_data *trigger_data,
+ 
+ 	trigger_data->last_activity = 0;
+ 
+-	set_baseline_state(trigger_data);
++	/* Skip if we're called from netdev_trig_activate() and hw_control is true */
++	if (!trigger_data->hw_control || led_get_trigger_data(trigger_data->led_cdev))
++		set_baseline_state(trigger_data);
++
+ 	mutex_unlock(&trigger_data->lock);
+ 	rtnl_unlock();
+ 
+@@ -617,8 +620,8 @@ static int netdev_trig_activate(struct led_classdev *led_cdev)
+ 		if (dev) {
+ 			const char *name = dev_name(dev);
+ 
+-			set_device_name(trigger_data, name, strlen(name));
+ 			trigger_data->hw_control = true;
++			set_device_name(trigger_data, name, strlen(name));
+ 
+ 			rc = led_cdev->hw_control_get(led_cdev, &mode);
+ 			if (!rc)
+diff --git a/drivers/net/dsa/realtek/Kconfig b/drivers/net/dsa/realtek/Kconfig
+index 060165a85fb7..6989972eebc3 100644
+--- a/drivers/net/dsa/realtek/Kconfig
++++ b/drivers/net/dsa/realtek/Kconfig
+@@ -16,37 +16,29 @@ menuconfig NET_DSA_REALTEK
+ if NET_DSA_REALTEK
+ 
+ config NET_DSA_REALTEK_MDIO
+-	tristate "Realtek MDIO interface driver"
++	bool "Realtek MDIO interface support"
+ 	depends on OF
+-	depends on NET_DSA_REALTEK_RTL8365MB || NET_DSA_REALTEK_RTL8366RB
+-	depends on NET_DSA_REALTEK_RTL8365MB || !NET_DSA_REALTEK_RTL8365MB
+-	depends on NET_DSA_REALTEK_RTL8366RB || !NET_DSA_REALTEK_RTL8366RB
+ 	help
+ 	  Select to enable support for registering switches configured
+ 	  through MDIO.
+ 
+ config NET_DSA_REALTEK_SMI
+-	tristate "Realtek SMI interface driver"
++	bool "Realtek SMI interface support"
+ 	depends on OF
+-	depends on NET_DSA_REALTEK_RTL8365MB || NET_DSA_REALTEK_RTL8366RB
+-	depends on NET_DSA_REALTEK_RTL8365MB || !NET_DSA_REALTEK_RTL8365MB
+-	depends on NET_DSA_REALTEK_RTL8366RB || !NET_DSA_REALTEK_RTL8366RB
+ 	help
+ 	  Select to enable support for registering switches connected
+ 	  through SMI.
+ 
+ config NET_DSA_REALTEK_RTL8365MB
+-	tristate "Realtek RTL8365MB switch subdriver"
+-	imply NET_DSA_REALTEK_SMI
+-	imply NET_DSA_REALTEK_MDIO
++	tristate "Realtek RTL8365MB switch driver"
++	depends on NET_DSA_REALTEK_SMI || NET_DSA_REALTEK_MDIO
+ 	select NET_DSA_TAG_RTL8_4
+ 	help
+ 	  Select to enable support for Realtek RTL8365MB-VC and RTL8367S.
+ 
+ config NET_DSA_REALTEK_RTL8366RB
+-	tristate "Realtek RTL8366RB switch subdriver"
+-	imply NET_DSA_REALTEK_SMI
+-	imply NET_DSA_REALTEK_MDIO
++	tristate "Realtek RTL8366RB switch driver"
++	depends on NET_DSA_REALTEK_SMI || NET_DSA_REALTEK_MDIO
+ 	select NET_DSA_TAG_RTL4_A
+ 	help
+ 	  Select to enable support for Realtek RTL8366RB.
+diff --git a/drivers/net/dsa/realtek/Makefile b/drivers/net/dsa/realtek/Makefile
+index 0aab57252a7c..35491dc20d6d 100644
+--- a/drivers/net/dsa/realtek/Makefile
++++ b/drivers/net/dsa/realtek/Makefile
+@@ -1,6 +1,15 @@
+ # SPDX-License-Identifier: GPL-2.0
+-obj-$(CONFIG_NET_DSA_REALTEK_MDIO) 	+= realtek-mdio.o
+-obj-$(CONFIG_NET_DSA_REALTEK_SMI) 	+= realtek-smi.o
++obj-$(CONFIG_NET_DSA_REALTEK)		+= realtek_dsa.o
++realtek_dsa-objs			:= rtl83xx.o
++
++ifdef CONFIG_NET_DSA_REALTEK_MDIO
++realtek_dsa-objs += realtek-mdio.o
++endif
++
++ifdef CONFIG_NET_DSA_REALTEK_SMI
++realtek_dsa-objs += realtek-smi.o
++endif
++
+ obj-$(CONFIG_NET_DSA_REALTEK_RTL8366RB) += rtl8366.o
+ rtl8366-objs 				:= rtl8366-core.o rtl8366rb.o
+ obj-$(CONFIG_NET_DSA_REALTEK_RTL8365MB) += rtl8365mb.o
+diff --git a/drivers/net/dsa/realtek/realtek-mdio.c b/drivers/net/dsa/realtek/realtek-mdio.c
+index 292e6d087e8b..04b758e5a680 100644
+--- a/drivers/net/dsa/realtek/realtek-mdio.c
++++ b/drivers/net/dsa/realtek/realtek-mdio.c
+@@ -25,6 +25,8 @@
+ #include <linux/regmap.h>
+ 
+ #include "realtek.h"
++#include "realtek-mdio.h"
++#include "rtl83xx.h"
+ 
+ /* Read/write via mdiobus */
+ #define REALTEK_MDIO_CTRL0_REG		31
+@@ -99,192 +101,87 @@ static int realtek_mdio_read(void *ctx, u32 reg, u32 *val)
+ 	return ret;
+ }
+ 
+-static void realtek_mdio_lock(void *ctx)
+-{
+-	struct realtek_priv *priv = ctx;
+-
+-	mutex_lock(&priv->map_lock);
+-}
+-
+-static void realtek_mdio_unlock(void *ctx)
+-{
+-	struct realtek_priv *priv = ctx;
+-
+-	mutex_unlock(&priv->map_lock);
+-}
+-
+-static const struct regmap_config realtek_mdio_regmap_config = {
+-	.reg_bits = 10, /* A4..A0 R4..R0 */
+-	.val_bits = 16,
+-	.reg_stride = 1,
+-	/* PHY regs are at 0x8000 */
+-	.max_register = 0xffff,
+-	.reg_format_endian = REGMAP_ENDIAN_BIG,
++static const struct realtek_interface_info realtek_mdio_info = {
+ 	.reg_read = realtek_mdio_read,
+ 	.reg_write = realtek_mdio_write,
+-	.cache_type = REGCACHE_NONE,
+-	.lock = realtek_mdio_lock,
+-	.unlock = realtek_mdio_unlock,
+ };
+ 
+-static const struct regmap_config realtek_mdio_nolock_regmap_config = {
+-	.reg_bits = 10, /* A4..A0 R4..R0 */
+-	.val_bits = 16,
+-	.reg_stride = 1,
+-	/* PHY regs are at 0x8000 */
+-	.max_register = 0xffff,
+-	.reg_format_endian = REGMAP_ENDIAN_BIG,
+-	.reg_read = realtek_mdio_read,
+-	.reg_write = realtek_mdio_write,
+-	.cache_type = REGCACHE_NONE,
+-	.disable_locking = true,
+-};
+-
+-static int realtek_mdio_probe(struct mdio_device *mdiodev)
++/**
++ * realtek_mdio_probe() - Probe a platform device for an MDIO-connected switch
++ * @mdiodev: mdio_device to probe on.
++ *
++ * This function should be used as the .probe in an mdio_driver. After
++ * calling the common probe function for both interfaces, it initializes the
++ * values specific for MDIO-connected devices. Finally, it calls a common
++ * function to register the DSA switch.
++ *
++ * Context: Can sleep. Takes and releases priv->map_lock.
++ * Return: Returns 0 on success, a negative error on failure.
++ */
++int realtek_mdio_probe(struct mdio_device *mdiodev)
+ {
+-	struct realtek_priv *priv;
+ 	struct device *dev = &mdiodev->dev;
+-	const struct realtek_variant *var;
+-	struct regmap_config rc;
+-	struct device_node *np;
++	struct realtek_priv *priv;
+ 	int ret;
+ 
+-	var = of_device_get_match_data(dev);
+-	if (!var)
+-		return -EINVAL;
+-
+-	priv = devm_kzalloc(&mdiodev->dev,
+-			    size_add(sizeof(*priv), var->chip_data_sz),
+-			    GFP_KERNEL);
+-	if (!priv)
+-		return -ENOMEM;
+-
+-	mutex_init(&priv->map_lock);
++	priv = rtl83xx_probe(dev, &realtek_mdio_info);
++	if (IS_ERR(priv))
++		return PTR_ERR(priv);
+ 
+-	rc = realtek_mdio_regmap_config;
+-	rc.lock_arg = priv;
+-	priv->map = devm_regmap_init(dev, NULL, priv, &rc);
+-	if (IS_ERR(priv->map)) {
+-		ret = PTR_ERR(priv->map);
+-		dev_err(dev, "regmap init failed: %d\n", ret);
+-		return ret;
+-	}
+-
+-	rc = realtek_mdio_nolock_regmap_config;
+-	priv->map_nolock = devm_regmap_init(dev, NULL, priv, &rc);
+-	if (IS_ERR(priv->map_nolock)) {
+-		ret = PTR_ERR(priv->map_nolock);
+-		dev_err(dev, "regmap init failed: %d\n", ret);
+-		return ret;
+-	}
+-
+-	priv->mdio_addr = mdiodev->addr;
+ 	priv->bus = mdiodev->bus;
+-	priv->dev = &mdiodev->dev;
+-	priv->chip_data = (void *)priv + sizeof(*priv);
+-
+-	priv->clk_delay = var->clk_delay;
+-	priv->cmd_read = var->cmd_read;
+-	priv->cmd_write = var->cmd_write;
+-	priv->ops = var->ops;
+-
++	priv->mdio_addr = mdiodev->addr;
+ 	priv->write_reg_noack = realtek_mdio_write;
+ 
+-	np = dev->of_node;
+-
+-	dev_set_drvdata(dev, priv);
+-
+-	/* TODO: if power is software controlled, set up any regulators here */
+-	priv->leds_disabled = of_property_read_bool(np, "realtek,disable-leds");
+-
+-	priv->reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
+-	if (IS_ERR(priv->reset)) {
+-		dev_err(dev, "failed to get RESET GPIO\n");
+-		return PTR_ERR(priv->reset);
+-	}
+-
+-	if (priv->reset) {
+-		gpiod_set_value(priv->reset, 1);
+-		dev_dbg(dev, "asserted RESET\n");
+-		msleep(REALTEK_HW_STOP_DELAY);
+-		gpiod_set_value(priv->reset, 0);
+-		msleep(REALTEK_HW_START_DELAY);
+-		dev_dbg(dev, "deasserted RESET\n");
+-	}
+-
+-	ret = priv->ops->detect(priv);
+-	if (ret) {
+-		dev_err(dev, "unable to detect switch\n");
+-		return ret;
+-	}
+-
+-	priv->ds = devm_kzalloc(dev, sizeof(*priv->ds), GFP_KERNEL);
+-	if (!priv->ds)
+-		return -ENOMEM;
+-
+-	priv->ds->dev = dev;
+-	priv->ds->num_ports = priv->num_ports;
+-	priv->ds->priv = priv;
+-	priv->ds->ops = var->ds_ops_mdio;
+-
+-	ret = dsa_register_switch(priv->ds);
++	ret = rtl83xx_register_switch(priv);
+ 	if (ret) {
+-		dev_err(priv->dev, "unable to register switch ret = %d\n", ret);
++		rtl83xx_remove(priv);
+ 		return ret;
+ 	}
+ 
+ 	return 0;
+ }
++EXPORT_SYMBOL_NS_GPL(realtek_mdio_probe, REALTEK_DSA);
+ 
+-static void realtek_mdio_remove(struct mdio_device *mdiodev)
++/**
++ * realtek_mdio_remove() - Remove the driver of an MDIO-connected switch
++ * @mdiodev: mdio_device to be removed.
++ *
++ * This function should be used as the .remove_new in an mdio_driver. First
++ * it unregisters the DSA switch and then it calls the common remove function.
++ *
++ * Context: Can sleep.
++ * Return: Nothing.
++ */
++void realtek_mdio_remove(struct mdio_device *mdiodev)
+ {
+ 	struct realtek_priv *priv = dev_get_drvdata(&mdiodev->dev);
+ 
+ 	if (!priv)
+ 		return;
+ 
+-	dsa_unregister_switch(priv->ds);
++	rtl83xx_unregister_switch(priv);
+ 
+-	/* leave the device reset asserted */
+-	if (priv->reset)
+-		gpiod_set_value(priv->reset, 1);
++	rtl83xx_remove(priv);
+ }
++EXPORT_SYMBOL_NS_GPL(realtek_mdio_remove, REALTEK_DSA);
+ 
+-static void realtek_mdio_shutdown(struct mdio_device *mdiodev)
++/**
++ * realtek_mdio_shutdown() - Shutdown the driver of a MDIO-connected switch
++ * @mdiodev: mdio_device shutting down.
++ *
++ * This function should be used as the .shutdown in a platform_driver. It calls
++ * the common shutdown function.
++ *
++ * Context: Can sleep.
++ * Return: Nothing.
++ */
++void realtek_mdio_shutdown(struct mdio_device *mdiodev)
+ {
+ 	struct realtek_priv *priv = dev_get_drvdata(&mdiodev->dev);
+ 
+ 	if (!priv)
+ 		return;
+ 
+-	dsa_switch_shutdown(priv->ds);
+-
+-	dev_set_drvdata(&mdiodev->dev, NULL);
++	rtl83xx_shutdown(priv);
+ }
+-
+-static const struct of_device_id realtek_mdio_of_match[] = {
+-#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8366RB)
+-	{ .compatible = "realtek,rtl8366rb", .data = &rtl8366rb_variant, },
+-#endif
+-#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8365MB)
+-	{ .compatible = "realtek,rtl8365mb", .data = &rtl8365mb_variant, },
+-#endif
+-	{ /* sentinel */ },
+-};
+-MODULE_DEVICE_TABLE(of, realtek_mdio_of_match);
+-
+-static struct mdio_driver realtek_mdio_driver = {
+-	.mdiodrv.driver = {
+-		.name = "realtek-mdio",
+-		.of_match_table = realtek_mdio_of_match,
+-	},
+-	.probe  = realtek_mdio_probe,
+-	.remove = realtek_mdio_remove,
+-	.shutdown = realtek_mdio_shutdown,
+-};
+-
+-mdio_module_driver(realtek_mdio_driver);
+-
+-MODULE_AUTHOR("Luiz Angelo Daros de Luca <luizluca@gmail.com>");
+-MODULE_DESCRIPTION("Driver for Realtek ethernet switch connected via MDIO interface");
+-MODULE_LICENSE("GPL");
++EXPORT_SYMBOL_NS_GPL(realtek_mdio_shutdown, REALTEK_DSA);
+diff --git a/drivers/net/dsa/realtek/realtek-mdio.h b/drivers/net/dsa/realtek/realtek-mdio.h
+new file mode 100644
+index 000000000000..ee70f6a5b8ff
+--- /dev/null
++++ b/drivers/net/dsa/realtek/realtek-mdio.h
+@@ -0,0 +1,48 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++
++#ifndef _REALTEK_MDIO_H
++#define _REALTEK_MDIO_H
++
++#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_MDIO)
++
++static inline int realtek_mdio_driver_register(struct mdio_driver *drv)
++{
++	return mdio_driver_register(drv);
++}
++
++static inline void realtek_mdio_driver_unregister(struct mdio_driver *drv)
++{
++	mdio_driver_unregister(drv);
++}
++
++int realtek_mdio_probe(struct mdio_device *mdiodev);
++void realtek_mdio_remove(struct mdio_device *mdiodev);
++void realtek_mdio_shutdown(struct mdio_device *mdiodev);
++
++#else /* IS_ENABLED(CONFIG_NET_DSA_REALTEK_MDIO) */
++
++static inline int realtek_mdio_driver_register(struct mdio_driver *drv)
++{
++	return 0;
++}
++
++static inline void realtek_mdio_driver_unregister(struct mdio_driver *drv)
++{
++}
++
++static inline int realtek_mdio_probe(struct mdio_device *mdiodev)
++{
++	return -ENOENT;
++}
++
++static inline void realtek_mdio_remove(struct mdio_device *mdiodev)
++{
++}
++
++static inline void realtek_mdio_shutdown(struct mdio_device *mdiodev)
++{
++}
++
++#endif /* IS_ENABLED(CONFIG_NET_DSA_REALTEK_MDIO) */
++
++#endif /* _REALTEK_MDIO_H */
+diff --git a/drivers/net/dsa/realtek/realtek-smi.c b/drivers/net/dsa/realtek/realtek-smi.c
+index 755546ed8db6..88590ae95a75 100644
+--- a/drivers/net/dsa/realtek/realtek-smi.c
++++ b/drivers/net/dsa/realtek/realtek-smi.c
+@@ -31,7 +31,6 @@
+ #include <linux/spinlock.h>
+ #include <linux/skbuff.h>
+ #include <linux/of.h>
+-#include <linux/of_mdio.h>
+ #include <linux/delay.h>
+ #include <linux/gpio/consumer.h>
+ #include <linux/platform_device.h>
+@@ -40,12 +39,14 @@
+ #include <linux/if_bridge.h>
+ 
+ #include "realtek.h"
++#include "realtek-smi.h"
++#include "rtl83xx.h"
+ 
+ #define REALTEK_SMI_ACK_RETRY_COUNT		5
+ 
+ static inline void realtek_smi_clk_delay(struct realtek_priv *priv)
+ {
+-	ndelay(priv->clk_delay);
++	ndelay(priv->variant->clk_delay);
+ }
+ 
+ static void realtek_smi_start(struct realtek_priv *priv)
+@@ -208,7 +209,7 @@ static int realtek_smi_read_reg(struct realtek_priv *priv, u32 addr, u32 *data)
+ 	realtek_smi_start(priv);
+ 
+ 	/* Send READ command */
+-	ret = realtek_smi_write_byte(priv, priv->cmd_read);
++	ret = realtek_smi_write_byte(priv, priv->variant->cmd_read);
+ 	if (ret)
+ 		goto out;
+ 
+@@ -249,7 +250,7 @@ static int realtek_smi_write_reg(struct realtek_priv *priv,
+ 	realtek_smi_start(priv);
+ 
+ 	/* Send WRITE command */
+-	ret = realtek_smi_write_byte(priv, priv->cmd_write);
++	ret = realtek_smi_write_byte(priv, priv->variant->cmd_write);
+ 	if (ret)
+ 		goto out;
+ 
+@@ -310,258 +311,98 @@ static int realtek_smi_read(void *ctx, u32 reg, u32 *val)
+ 	return realtek_smi_read_reg(priv, reg, val);
+ }
+ 
+-static void realtek_smi_lock(void *ctx)
+-{
+-	struct realtek_priv *priv = ctx;
+-
+-	mutex_lock(&priv->map_lock);
+-}
+-
+-static void realtek_smi_unlock(void *ctx)
+-{
+-	struct realtek_priv *priv = ctx;
+-
+-	mutex_unlock(&priv->map_lock);
+-}
+-
+-static const struct regmap_config realtek_smi_regmap_config = {
+-	.reg_bits = 10, /* A4..A0 R4..R0 */
+-	.val_bits = 16,
+-	.reg_stride = 1,
+-	/* PHY regs are at 0x8000 */
+-	.max_register = 0xffff,
+-	.reg_format_endian = REGMAP_ENDIAN_BIG,
++static const struct realtek_interface_info realtek_smi_info = {
+ 	.reg_read = realtek_smi_read,
+ 	.reg_write = realtek_smi_write,
+-	.cache_type = REGCACHE_NONE,
+-	.lock = realtek_smi_lock,
+-	.unlock = realtek_smi_unlock,
+ };
+ 
+-static const struct regmap_config realtek_smi_nolock_regmap_config = {
+-	.reg_bits = 10, /* A4..A0 R4..R0 */
+-	.val_bits = 16,
+-	.reg_stride = 1,
+-	/* PHY regs are at 0x8000 */
+-	.max_register = 0xffff,
+-	.reg_format_endian = REGMAP_ENDIAN_BIG,
+-	.reg_read = realtek_smi_read,
+-	.reg_write = realtek_smi_write,
+-	.cache_type = REGCACHE_NONE,
+-	.disable_locking = true,
+-};
+-
+-static int realtek_smi_mdio_read(struct mii_bus *bus, int addr, int regnum)
+-{
+-	struct realtek_priv *priv = bus->priv;
+-
+-	return priv->ops->phy_read(priv, addr, regnum);
+-}
+-
+-static int realtek_smi_mdio_write(struct mii_bus *bus, int addr, int regnum,
+-				  u16 val)
+-{
+-	struct realtek_priv *priv = bus->priv;
+-
+-	return priv->ops->phy_write(priv, addr, regnum, val);
+-}
+-
+-static int realtek_smi_setup_mdio(struct dsa_switch *ds)
+-{
+-	struct realtek_priv *priv =  ds->priv;
+-	struct device_node *mdio_np;
+-	int ret;
+-
+-	mdio_np = of_get_compatible_child(priv->dev->of_node, "realtek,smi-mdio");
+-	if (!mdio_np) {
+-		dev_err(priv->dev, "no MDIO bus node\n");
+-		return -ENODEV;
+-	}
+-
+-	priv->slave_mii_bus = devm_mdiobus_alloc(priv->dev);
+-	if (!priv->slave_mii_bus) {
+-		ret = -ENOMEM;
+-		goto err_put_node;
+-	}
+-	priv->slave_mii_bus->priv = priv;
+-	priv->slave_mii_bus->name = "SMI slave MII";
+-	priv->slave_mii_bus->read = realtek_smi_mdio_read;
+-	priv->slave_mii_bus->write = realtek_smi_mdio_write;
+-	snprintf(priv->slave_mii_bus->id, MII_BUS_ID_SIZE, "SMI-%d",
+-		 ds->index);
+-	priv->slave_mii_bus->dev.of_node = mdio_np;
+-	priv->slave_mii_bus->parent = priv->dev;
+-	ds->slave_mii_bus = priv->slave_mii_bus;
+-
+-	ret = devm_of_mdiobus_register(priv->dev, priv->slave_mii_bus, mdio_np);
+-	if (ret) {
+-		dev_err(priv->dev, "unable to register MDIO bus %s\n",
+-			priv->slave_mii_bus->id);
+-		goto err_put_node;
+-	}
+-
+-	return 0;
+-
+-err_put_node:
+-	of_node_put(mdio_np);
+-
+-	return ret;
+-}
+-
+-static int realtek_smi_probe(struct platform_device *pdev)
++/**
++ * realtek_smi_probe() - Probe a platform device for an SMI-connected switch
++ * @pdev: platform_device to probe on.
++ *
++ * This function should be used as the .probe in a platform_driver. After
++ * calling the common probe function for both interfaces, it initializes the
++ * values specific for SMI-connected devices. Finally, it calls a common
++ * function to register the DSA switch.
++ *
++ * Context: Can sleep. Takes and releases priv->map_lock.
++ * Return: Returns 0 on success, a negative error on failure.
++ */
++int realtek_smi_probe(struct platform_device *pdev)
+ {
+-	const struct realtek_variant *var;
+ 	struct device *dev = &pdev->dev;
+ 	struct realtek_priv *priv;
+-	struct regmap_config rc;
+-	struct device_node *np;
+ 	int ret;
+ 
+-	var = of_device_get_match_data(dev);
+-	np = dev->of_node;
+-
+-	priv = devm_kzalloc(dev, sizeof(*priv) + var->chip_data_sz, GFP_KERNEL);
+-	if (!priv)
+-		return -ENOMEM;
+-	priv->chip_data = (void *)priv + sizeof(*priv);
+-
+-	mutex_init(&priv->map_lock);
+-
+-	rc = realtek_smi_regmap_config;
+-	rc.lock_arg = priv;
+-	priv->map = devm_regmap_init(dev, NULL, priv, &rc);
+-	if (IS_ERR(priv->map)) {
+-		ret = PTR_ERR(priv->map);
+-		dev_err(dev, "regmap init failed: %d\n", ret);
+-		return ret;
+-	}
+-
+-	rc = realtek_smi_nolock_regmap_config;
+-	priv->map_nolock = devm_regmap_init(dev, NULL, priv, &rc);
+-	if (IS_ERR(priv->map_nolock)) {
+-		ret = PTR_ERR(priv->map_nolock);
+-		dev_err(dev, "regmap init failed: %d\n", ret);
+-		return ret;
+-	}
+-
+-	/* Link forward and backward */
+-	priv->dev = dev;
+-	priv->clk_delay = var->clk_delay;
+-	priv->cmd_read = var->cmd_read;
+-	priv->cmd_write = var->cmd_write;
+-	priv->ops = var->ops;
+-
+-	priv->setup_interface = realtek_smi_setup_mdio;
+-	priv->write_reg_noack = realtek_smi_write_reg_noack;
+-
+-	dev_set_drvdata(dev, priv);
+-	spin_lock_init(&priv->lock);
+-
+-	/* TODO: if power is software controlled, set up any regulators here */
+-
+-	priv->reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
+-	if (IS_ERR(priv->reset)) {
+-		dev_err(dev, "failed to get RESET GPIO\n");
+-		return PTR_ERR(priv->reset);
+-	}
+-	if (priv->reset) {
+-		gpiod_set_value(priv->reset, 1);
+-		dev_dbg(dev, "asserted RESET\n");
+-		msleep(REALTEK_HW_STOP_DELAY);
+-		gpiod_set_value(priv->reset, 0);
+-		msleep(REALTEK_HW_START_DELAY);
+-		dev_dbg(dev, "deasserted RESET\n");
+-	}
++	priv = rtl83xx_probe(dev, &realtek_smi_info);
++	if (IS_ERR(priv))
++		return PTR_ERR(priv);
+ 
+ 	/* Fetch MDIO pins */
+ 	priv->mdc = devm_gpiod_get_optional(dev, "mdc", GPIOD_OUT_LOW);
+-	if (IS_ERR(priv->mdc))
++	if (IS_ERR(priv->mdc)) {
++		rtl83xx_remove(priv);
+ 		return PTR_ERR(priv->mdc);
++	}
++
+ 	priv->mdio = devm_gpiod_get_optional(dev, "mdio", GPIOD_OUT_LOW);
+-	if (IS_ERR(priv->mdio))
++	if (IS_ERR(priv->mdio)) {
++		rtl83xx_remove(priv);
+ 		return PTR_ERR(priv->mdio);
+-
+-	priv->leds_disabled = of_property_read_bool(np, "realtek,disable-leds");
+-
+-	ret = priv->ops->detect(priv);
+-	if (ret) {
+-		dev_err(dev, "unable to detect switch\n");
+-		return ret;
+ 	}
+ 
+-	priv->ds = devm_kzalloc(dev, sizeof(*priv->ds), GFP_KERNEL);
+-	if (!priv->ds)
+-		return -ENOMEM;
+-
+-	priv->ds->dev = dev;
+-	priv->ds->num_ports = priv->num_ports;
+-	priv->ds->priv = priv;
++	priv->write_reg_noack = realtek_smi_write_reg_noack;
+ 
+-	priv->ds->ops = var->ds_ops_smi;
+-	ret = dsa_register_switch(priv->ds);
++	ret = rtl83xx_register_switch(priv);
+ 	if (ret) {
+-		dev_err_probe(dev, ret, "unable to register switch\n");
++		rtl83xx_remove(priv);
+ 		return ret;
+ 	}
++
+ 	return 0;
+ }
++EXPORT_SYMBOL_NS_GPL(realtek_smi_probe, REALTEK_DSA);
+ 
+-static void realtek_smi_remove(struct platform_device *pdev)
++/**
++ * realtek_smi_remove() - Remove the driver of a SMI-connected switch
++ * @pdev: platform_device to be removed.
++ *
++ * This function should be used as the .remove_new in a platform_driver. First
++ * it unregisters the DSA switch and then it calls the common remove function.
++ *
++ * Context: Can sleep.
++ * Return: Nothing.
++ */
++void realtek_smi_remove(struct platform_device *pdev)
+ {
+ 	struct realtek_priv *priv = platform_get_drvdata(pdev);
+ 
+ 	if (!priv)
+ 		return;
+ 
+-	dsa_unregister_switch(priv->ds);
+-	if (priv->slave_mii_bus)
+-		of_node_put(priv->slave_mii_bus->dev.of_node);
++	rtl83xx_unregister_switch(priv);
+ 
+-	/* leave the device reset asserted */
+-	if (priv->reset)
+-		gpiod_set_value(priv->reset, 1);
++	rtl83xx_remove(priv);
+ }
++EXPORT_SYMBOL_NS_GPL(realtek_smi_remove, REALTEK_DSA);
+ 
+-static void realtek_smi_shutdown(struct platform_device *pdev)
++/**
++ * realtek_smi_shutdown() - Shutdown the driver of a SMI-connected switch
++ * @pdev: platform_device shutting down.
++ *
++ * This function should be used as the .shutdown in a platform_driver. It calls
++ * the common shutdown function.
++ *
++ * Context: Can sleep.
++ * Return: Nothing.
++ */
++void realtek_smi_shutdown(struct platform_device *pdev)
+ {
+ 	struct realtek_priv *priv = platform_get_drvdata(pdev);
+ 
+ 	if (!priv)
+ 		return;
+ 
+-	dsa_switch_shutdown(priv->ds);
+-
+-	platform_set_drvdata(pdev, NULL);
++	rtl83xx_shutdown(priv);
+ }
+-
+-static const struct of_device_id realtek_smi_of_match[] = {
+-#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8366RB)
+-	{
+-		.compatible = "realtek,rtl8366rb",
+-		.data = &rtl8366rb_variant,
+-	},
+-#endif
+-#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_RTL8365MB)
+-	{
+-		.compatible = "realtek,rtl8365mb",
+-		.data = &rtl8365mb_variant,
+-	},
+-#endif
+-	{ /* sentinel */ },
+-};
+-MODULE_DEVICE_TABLE(of, realtek_smi_of_match);
+-
+-static struct platform_driver realtek_smi_driver = {
+-	.driver = {
+-		.name = "realtek-smi",
+-		.of_match_table = realtek_smi_of_match,
+-	},
+-	.probe  = realtek_smi_probe,
+-	.remove_new = realtek_smi_remove,
+-	.shutdown = realtek_smi_shutdown,
+-};
+-module_platform_driver(realtek_smi_driver);
+-
+-MODULE_AUTHOR("Linus Walleij <linus.walleij@linaro.org>");
+-MODULE_DESCRIPTION("Driver for Realtek ethernet switch connected via SMI interface");
+-MODULE_LICENSE("GPL");
++EXPORT_SYMBOL_NS_GPL(realtek_smi_shutdown, REALTEK_DSA);
+diff --git a/drivers/net/dsa/realtek/realtek-smi.h b/drivers/net/dsa/realtek/realtek-smi.h
+new file mode 100644
+index 000000000000..ea49a2edd3c8
+--- /dev/null
++++ b/drivers/net/dsa/realtek/realtek-smi.h
+@@ -0,0 +1,48 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++
++#ifndef _REALTEK_SMI_H
++#define _REALTEK_SMI_H
++
++#if IS_ENABLED(CONFIG_NET_DSA_REALTEK_SMI)
++
++static inline int realtek_smi_driver_register(struct platform_driver *drv)
++{
++	return platform_driver_register(drv);
++}
++
++static inline void realtek_smi_driver_unregister(struct platform_driver *drv)
++{
++	platform_driver_unregister(drv);
++}
++
++int realtek_smi_probe(struct platform_device *pdev);
++void realtek_smi_remove(struct platform_device *pdev);
++void realtek_smi_shutdown(struct platform_device *pdev);
++
++#else /* IS_ENABLED(CONFIG_NET_DSA_REALTEK_SMI) */
++
++static inline int realtek_smi_driver_register(struct platform_driver *drv)
++{
++	return 0;
++}
++
++static inline void realtek_smi_driver_unregister(struct platform_driver *drv)
++{
++}
++
++static inline int realtek_smi_probe(struct platform_device *pdev)
++{
++	return -ENOENT;
++}
++
++static inline void realtek_smi_remove(struct platform_device *pdev)
++{
++}
++
++static inline void realtek_smi_shutdown(struct platform_device *pdev)
++{
++}
++
++#endif /* IS_ENABLED(CONFIG_NET_DSA_REALTEK_SMI) */
++
++#endif  /* _REALTEK_SMI_H */
+diff --git a/drivers/net/dsa/realtek/realtek.h b/drivers/net/dsa/realtek/realtek.h
+index 790488e9c667..e0b1aa01337b 100644
+--- a/drivers/net/dsa/realtek/realtek.h
++++ b/drivers/net/dsa/realtek/realtek.h
+@@ -12,6 +12,7 @@
+ #include <linux/platform_device.h>
+ #include <linux/gpio/consumer.h>
+ #include <net/dsa.h>
++#include <linux/reset.h>
+ 
+ #define REALTEK_HW_STOP_DELAY		25	/* msecs */
+ #define REALTEK_HW_START_DELAY		100	/* msecs */
+@@ -48,6 +49,7 @@ struct rtl8366_vlan_4k {
+ 
+ struct realtek_priv {
+ 	struct device		*dev;
++	struct reset_control    *reset_ctl;
+ 	struct gpio_desc	*reset;
+ 	struct gpio_desc	*mdc;
+ 	struct gpio_desc	*mdio;
+@@ -58,11 +60,10 @@ struct realtek_priv {
+ 	struct mii_bus		*bus;
+ 	int			mdio_addr;
+ 
+-	unsigned int		clk_delay;
+-	u8			cmd_read;
+-	u8			cmd_write;
++	const struct realtek_variant *variant;
++
+ 	spinlock_t		lock; /* Locks around command writes */
+-	struct dsa_switch	*ds;
++	struct dsa_switch	ds;
+ 	struct irq_domain	*irqdomain;
+ 	bool			leds_disabled;
+ 
+@@ -73,7 +74,6 @@ struct realtek_priv {
+ 	struct rtl8366_mib_counter *mib_counters;
+ 
+ 	const struct realtek_ops *ops;
+-	int			(*setup_interface)(struct dsa_switch *ds);
+ 	int			(*write_reg_noack)(void *ctx, u32 addr, u32 data);
+ 
+ 	int			vlan_enabled;
+@@ -91,7 +91,6 @@ struct realtek_ops {
+ 	int	(*detect)(struct realtek_priv *priv);
+ 	int	(*reset_chip)(struct realtek_priv *priv);
+ 	int	(*setup)(struct realtek_priv *priv);
+-	void	(*cleanup)(struct realtek_priv *priv);
+ 	int	(*get_mib_counter)(struct realtek_priv *priv,
+ 				   int port,
+ 				   struct rtl8366_mib_counter *mib,
+@@ -116,8 +115,7 @@ struct realtek_ops {
+ };
+ 
+ struct realtek_variant {
+-	const struct dsa_switch_ops *ds_ops_smi;
+-	const struct dsa_switch_ops *ds_ops_mdio;
++	const struct dsa_switch_ops *ds_ops;
+ 	const struct realtek_ops *ops;
+ 	unsigned int clk_delay;
+ 	u8 cmd_read;
+diff --git a/drivers/net/dsa/realtek/rtl8365mb.c b/drivers/net/dsa/realtek/rtl8365mb.c
+index b072045eb154..bac6d86165d3 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb.c
++++ b/drivers/net/dsa/realtek/rtl8365mb.c
+@@ -101,13 +101,23 @@
+ #include <linux/if_vlan.h>
+ 
+ #include "realtek.h"
++#include "realtek-smi.h"
++#include "realtek-mdio.h"
++#include "rtl83xx.h"
+ 
+ /* Family-specific data and limits */
+ #define RTL8365MB_PHYADDRMAX		7
++/* FIXME? */
++#define RTL8367R_PHYADDRMAX		8
+ #define RTL8365MB_NUM_PHYREGS		32
+ #define RTL8365MB_PHYREGMAX		(RTL8365MB_NUM_PHYREGS - 1)
+ #define RTL8365MB_MAX_NUM_PORTS		11
++/* FIXME? */
++#define RTL8367R_MAX_NUM_PORTS		10
+ #define RTL8365MB_MAX_NUM_EXTINTS	3
++/* FIXME? */
++#define RTL8367R_MAX_NUM_EXTINTS	2
++
+ #define RTL8365MB_LEARN_LIMIT_MAX	2112
+ 
+ /* Chip identification registers */
+@@ -205,11 +215,11 @@
+ #define RTL8365MB_EXT_PORT_MODE_1000X		12
+ #define RTL8365MB_EXT_PORT_MODE_100FX		13
+ 
+-/* External interface mode configuration registers 0~1 */
+-#define RTL8365MB_DIGITAL_INTERFACE_SELECT_REG0		0x1305 /* EXT1 */
++/* External interface mode configuration registers 0~2 */
++#define RTL8365MB_DIGITAL_INTERFACE_SELECT_REG0		0x1305 /* EXT0,EXT1 */
+ #define RTL8365MB_DIGITAL_INTERFACE_SELECT_REG1		0x13C3 /* EXT2 */
+ #define RTL8365MB_DIGITAL_INTERFACE_SELECT_REG(_extint) \
+-		((_extint) == 1 ? RTL8365MB_DIGITAL_INTERFACE_SELECT_REG0 : \
++		((_extint) <= 1 ? RTL8365MB_DIGITAL_INTERFACE_SELECT_REG0 : \
+ 		 (_extint) == 2 ? RTL8365MB_DIGITAL_INTERFACE_SELECT_REG1 : \
+ 		 0x0)
+ #define   RTL8365MB_DIGITAL_INTERFACE_SELECT_MODE_MASK(_extint) \
+@@ -311,6 +321,47 @@
+  */
+ #define RTL8365MB_STATS_INTERVAL_JIFFIES	(3 * HZ)
+ 
++/* LED trigger event for each group */
++#define RTL8365MB_LED_CTRL_REG			0x1b03
++#define RTL8365MB_LED_CTRL_OFFSET(led_group)	\
++	(4 * (led_group))
++#define RTL8365MB_LED_CTRL_MASK(led_group)	\
++	(0xf << RTL8365MB_LED_CTRL_OFFSET(led_group))
++
++/* LED mode for each port in each group */
++/* MODEs ON and OFF have precedence over RTL8365MB_LED_CTRL_REG */
++#define RTL8365MB_LED_0_P0_P7_CTRL_REG		0x1b08
++#define RTL8365MB_LED_0_P8_P9_CTRL_REG		0x1b09
++#define RTL8365MB_LED_1_P0_P7_CTRL_REG		0x1b0a
++#define RTL8365MB_LED_1_P8_P9_CTRL_REG		0x1b0b
++#define RTL8365MB_LED_2_P0_P7_CTRL_REG		0x1b0c
++#define RTL8365MB_LED_2_P8_P9_CTRL_REG		0x1b0d
++
++#define RTL8365MB_LED_X_PX_CTRL_REG_BASE	RTL8365MB_LED_0_P0_P7_CTRL_REG
++#define RTL8365MB_LED_X_PX_CTRL_REG(led_group, port)	\
++	RTL8365MB_LED_X_PX_CTRL_REG_BASE + ((led_group)*2) + ((port)/8)
++
++enum rtl8366_led_mode {
++	RTL8365MB_LED_OFF		= 0x0,
++	RTL8365MB_LED_DUP_COL		= 0x1,
++	RTL8365MB_LED_LINK_ACT		= 0x2,
++	RTL8365MB_LED_SPD1000		= 0x3,
++	RTL8365MB_LED_SPD100		= 0x4,
++	RTL8365MB_LED_SPD10		= 0x5,
++	RTL8365MB_LED_SPD1000_ACT	= 0x6,
++	RTL8365MB_LED_SPD100_ACT	= 0x7,
++	RTL8365MB_LED_SPD10_ACT		= 0x8,
++	RTL8365MB_LED_SPD100_10_ACT	= 0x9,
++	RTL8365MB_LED_FIBER		= 0xa,
++	RTL8365MB_LED_AN_FAULT		= 0xb,
++	RTL8365MB_LED_LINK_RX		= 0xc,
++	RTL8365MB_LED_LINK_TX		= 0xd,
++	RTL8365MB_LED_MASTER		= 0xe,
++	RTL8365MB_LED_FORCE		= 0xf,
++
++	__RTL8365MB_LED_MAX
++};
++
+ enum rtl8365mb_mib_counter_index {
+ 	RTL8365MB_MIB_ifInOctets,
+ 	RTL8365MB_MIB_dot3StatsFCSErrors,
+@@ -554,6 +605,20 @@ static const struct rtl8365mb_chip_info rtl8365mb_chip_infos[] = {
+ 		.jam_table = rtl8365mb_init_jam_8365mb_vc,
+ 		.jam_size = ARRAY_SIZE(rtl8365mb_init_jam_8365mb_vc),
+ 	},
++	{
++		.name = "RTL8367R",
++		.chip_id = 0x6088,
++		.chip_ver = 0x1000,
++		.extints = {
++			{ 8, 1, PHY_INTF(MII) | PHY_INTF(TMII) |
++				PHY_INTF(RMII) | PHY_INTF(RGMII) },
++			{ 9, 0, PHY_INTF(MII) | PHY_INTF(TMII) |
++				PHY_INTF(RMII) | PHY_INTF(RGMII) },
++		},
++		.jam_table = rtl8365mb_init_jam_8365mb_vc,
++		//.jam_size = ARRAY_SIZE(rtl8365mb_init_jam_8365mb_vc),
++		.jam_size = 0,
++	},
+ };
+ 
+ enum rtl8365mb_stp_state {
+@@ -689,7 +754,8 @@ static int rtl8365mb_phy_ocp_read(struct realtek_priv *priv, int phy,
+ 	u32 val;
+ 	int ret;
+ 
+-	mutex_lock(&priv->map_lock);
++	rtl83xx_lock(priv);
++
+ 
+ 	ret = rtl8365mb_phy_poll_busy(priv);
+ 	if (ret)
+@@ -722,7 +788,7 @@ static int rtl8365mb_phy_ocp_read(struct realtek_priv *priv, int phy,
+ 	*data = val & 0xFFFF;
+ 
+ out:
+-	mutex_unlock(&priv->map_lock);
++	rtl83xx_unlock(priv);
+ 
+ 	return ret;
+ }
+@@ -733,7 +799,7 @@ static int rtl8365mb_phy_ocp_write(struct realtek_priv *priv, int phy,
+ 	u32 val;
+ 	int ret;
+ 
+-	mutex_lock(&priv->map_lock);
++	rtl83xx_lock(priv);
+ 
+ 	ret = rtl8365mb_phy_poll_busy(priv);
+ 	if (ret)
+@@ -764,7 +830,7 @@ static int rtl8365mb_phy_ocp_write(struct realtek_priv *priv, int phy,
+ 		goto out;
+ 
+ out:
+-	mutex_unlock(&priv->map_lock);
++	rtl83xx_unlock(priv);
+ 
+ 	return 0;
+ }
+@@ -825,17 +891,6 @@ static int rtl8365mb_phy_write(struct realtek_priv *priv, int phy, int regnum,
+ 	return 0;
+ }
+ 
+-static int rtl8365mb_dsa_phy_read(struct dsa_switch *ds, int phy, int regnum)
+-{
+-	return rtl8365mb_phy_read(ds->priv, phy, regnum);
+-}
+-
+-static int rtl8365mb_dsa_phy_write(struct dsa_switch *ds, int phy, int regnum,
+-				   u16 val)
+-{
+-	return rtl8365mb_phy_write(ds->priv, phy, regnum, val);
+-}
+-
+ static const struct rtl8365mb_extint *
+ rtl8365mb_get_port_extint(struct realtek_priv *priv, int port)
+ {
+@@ -878,6 +933,7 @@ static int rtl8365mb_ext_config_rgmii(struct realtek_priv *priv, int port,
+ {
+ 	const struct rtl8365mb_extint *extint =
+ 		rtl8365mb_get_port_extint(priv, port);
++	struct dsa_switch *ds = &priv->ds;
+ 	struct device_node *dn;
+ 	struct dsa_port *dp;
+ 	int tx_delay = 0;
+@@ -888,7 +944,7 @@ static int rtl8365mb_ext_config_rgmii(struct realtek_priv *priv, int port,
+ 	if (!extint)
+ 		return -ENODEV;
+ 
+-	dp = dsa_to_port(priv->ds, port);
++	dp = dsa_to_port(ds, port);
+ 	dn = dp->dn;
+ 
+ 	/* Set the RGMII TX/RX delay
+@@ -1541,6 +1597,7 @@ static void rtl8365mb_get_stats64(struct dsa_switch *ds, int port,
+ static void rtl8365mb_stats_setup(struct realtek_priv *priv)
+ {
+ 	struct rtl8365mb *mb = priv->chip_data;
++	struct dsa_switch *ds = &priv->ds;
+ 	int i;
+ 
+ 	/* Per-chip global mutex to protect MIB counter access, since doing
+@@ -1551,7 +1608,7 @@ static void rtl8365mb_stats_setup(struct realtek_priv *priv)
+ 	for (i = 0; i < priv->num_ports; i++) {
+ 		struct rtl8365mb_port *p = &mb->ports[i];
+ 
+-		if (dsa_is_unused_port(priv->ds, i))
++		if (dsa_is_unused_port(ds, i))
+ 			continue;
+ 
+ 		/* Per-port spinlock to protect the stats64 data */
+@@ -1567,12 +1624,13 @@ static void rtl8365mb_stats_setup(struct realtek_priv *priv)
+ static void rtl8365mb_stats_teardown(struct realtek_priv *priv)
+ {
+ 	struct rtl8365mb *mb = priv->chip_data;
++	struct dsa_switch *ds = &priv->ds;
+ 	int i;
+ 
+ 	for (i = 0; i < priv->num_ports; i++) {
+ 		struct rtl8365mb_port *p = &mb->ports[i];
+ 
+-		if (dsa_is_unused_port(priv->ds, i))
++		if (dsa_is_unused_port(ds, i))
+ 			continue;
+ 
+ 		cancel_delayed_work_sync(&p->mib_work);
+@@ -1932,7 +1990,8 @@ static int rtl8365mb_reset_chip(struct realtek_priv *priv)
+ 	/* Realtek documentation says the chip needs 1 second to reset. Sleep
+ 	 * for 100 ms before accessing any registers to prevent ACK timeouts.
+ 	 */
+-	msleep(100);
++	// FIXME: make it variant parameter
++	msleep(1000);
+ 	return regmap_read_poll_timeout(priv->map, RTL8365MB_CHIP_RESET_REG, val,
+ 					!(val & RTL8365MB_CHIP_RESET_HW_MASK),
+ 					20000, 1e6);
+@@ -1971,7 +2030,7 @@ static int rtl8365mb_setup(struct dsa_switch *ds)
+ 		dev_info(priv->dev, "no interrupt support\n");
+ 
+ 	/* Configure CPU tagging */
+-	dsa_switch_for_each_cpu_port(cpu_dp, priv->ds) {
++	dsa_switch_for_each_cpu_port(cpu_dp, ds) {
+ 		cpu->mask |= BIT(cpu_dp->index);
+ 
+ 		if (cpu->trap_port == RTL8365MB_MAX_NUM_PORTS)
+@@ -1986,7 +2045,7 @@ static int rtl8365mb_setup(struct dsa_switch *ds)
+ 	for (i = 0; i < priv->num_ports; i++) {
+ 		struct rtl8365mb_port *p = &mb->ports[i];
+ 
+-		if (dsa_is_unused_port(priv->ds, i))
++		if (dsa_is_unused_port(ds, i))
+ 			continue;
+ 
+ 		/* Forward only to the CPU */
+@@ -1999,11 +2058,13 @@ static int rtl8365mb_setup(struct dsa_switch *ds)
+ 		if (ret)
+ 			goto out_teardown_irq;
+ 
++#if 0
+ 		/* Set the initial STP state of all ports to DISABLED, otherwise
+ 		 * ports will still forward frames to the CPU despite being
+ 		 * administratively down by default.
+ 		 */
+-		rtl8365mb_port_stp_state_set(priv->ds, i, BR_STATE_DISABLED);
++		rtl8365mb_port_stp_state_set(ds, i, BR_STATE_DISABLED);
++#endif
+ 
+ 		/* Set up per-port private data */
+ 		p->priv = priv;
+@@ -2014,12 +2075,10 @@ static int rtl8365mb_setup(struct dsa_switch *ds)
+ 	if (ret)
+ 		goto out_teardown_irq;
+ 
+-	if (priv->setup_interface) {
+-		ret = priv->setup_interface(ds);
+-		if (ret) {
+-			dev_err(priv->dev, "could not set up MDIO bus\n");
+-			goto out_teardown_irq;
+-		}
++	ret = rtl83xx_setup_user_mdio(ds);
++	if (ret) {
++		dev_err(priv->dev, "could not set up MDIO bus\n");
++		goto out_teardown_irq;
+ 	}
+ 
+ 	/* Start statistics counter polling */
+@@ -2113,28 +2172,7 @@ static int rtl8365mb_detect(struct realtek_priv *priv)
+ 	return 0;
+ }
+ 
+-static const struct dsa_switch_ops rtl8365mb_switch_ops_smi = {
+-	.get_tag_protocol = rtl8365mb_get_tag_protocol,
+-	.change_tag_protocol = rtl8365mb_change_tag_protocol,
+-	.setup = rtl8365mb_setup,
+-	.teardown = rtl8365mb_teardown,
+-	.phylink_get_caps = rtl8365mb_phylink_get_caps,
+-	.phylink_mac_config = rtl8365mb_phylink_mac_config,
+-	.phylink_mac_link_down = rtl8365mb_phylink_mac_link_down,
+-	.phylink_mac_link_up = rtl8365mb_phylink_mac_link_up,
+-	.port_stp_state_set = rtl8365mb_port_stp_state_set,
+-	.get_strings = rtl8365mb_get_strings,
+-	.get_ethtool_stats = rtl8365mb_get_ethtool_stats,
+-	.get_sset_count = rtl8365mb_get_sset_count,
+-	.get_eth_phy_stats = rtl8365mb_get_phy_stats,
+-	.get_eth_mac_stats = rtl8365mb_get_mac_stats,
+-	.get_eth_ctrl_stats = rtl8365mb_get_ctrl_stats,
+-	.get_stats64 = rtl8365mb_get_stats64,
+-	.port_change_mtu = rtl8365mb_port_change_mtu,
+-	.port_max_mtu = rtl8365mb_port_max_mtu,
+-};
+-
+-static const struct dsa_switch_ops rtl8365mb_switch_ops_mdio = {
++static const struct dsa_switch_ops rtl8365mb_switch_ops = {
+ 	.get_tag_protocol = rtl8365mb_get_tag_protocol,
+ 	.change_tag_protocol = rtl8365mb_change_tag_protocol,
+ 	.setup = rtl8365mb_setup,
+@@ -2143,8 +2181,6 @@ static const struct dsa_switch_ops rtl8365mb_switch_ops_mdio = {
+ 	.phylink_mac_config = rtl8365mb_phylink_mac_config,
+ 	.phylink_mac_link_down = rtl8365mb_phylink_mac_link_down,
+ 	.phylink_mac_link_up = rtl8365mb_phylink_mac_link_up,
+-	.phy_read = rtl8365mb_dsa_phy_read,
+-	.phy_write = rtl8365mb_dsa_phy_write,
+ 	.port_stp_state_set = rtl8365mb_port_stp_state_set,
+ 	.get_strings = rtl8365mb_get_strings,
+ 	.get_ethtool_stats = rtl8365mb_get_ethtool_stats,
+@@ -2164,16 +2200,76 @@ static const struct realtek_ops rtl8365mb_ops = {
+ };
+ 
+ const struct realtek_variant rtl8365mb_variant = {
+-	.ds_ops_smi = &rtl8365mb_switch_ops_smi,
+-	.ds_ops_mdio = &rtl8365mb_switch_ops_mdio,
++	.ds_ops = &rtl8365mb_switch_ops,
+ 	.ops = &rtl8365mb_ops,
+ 	.clk_delay = 10,
+ 	.cmd_read = 0xb9,
+ 	.cmd_write = 0xb8,
+ 	.chip_data_sz = sizeof(struct rtl8365mb),
+ };
+-EXPORT_SYMBOL_GPL(rtl8365mb_variant);
++
++const struct realtek_variant rtl8367r_variant = {
++	.ds_ops = &rtl8365mb_switch_ops,
++	.ops = &rtl8365mb_ops,
++	.clk_delay = 1500,
++	.cmd_read = 0xb9,
++	.cmd_write = 0xb8,
++	.chip_data_sz = sizeof(struct rtl8365mb),
++};
++
++static const struct of_device_id rtl8365mb_of_match[] = {
++	{ .compatible = "realtek,rtl8365mb", .data = &rtl8365mb_variant, },
++	{ .compatible = "realtek,rtl8367r", .data = &rtl8367r_variant, },
++	{ /* sentinel */ },
++};
++MODULE_DEVICE_TABLE(of, rtl8365mb_of_match);
++
++static struct platform_driver rtl8365mb_smi_driver = {
++	.driver = {
++		.name = "rtl8365mb-smi",
++		.of_match_table = rtl8365mb_of_match,
++	},
++	.probe  = realtek_smi_probe,
++	.remove_new = realtek_smi_remove,
++	.shutdown = realtek_smi_shutdown,
++};
++
++static struct mdio_driver rtl8365mb_mdio_driver = {
++	.mdiodrv.driver = {
++		.name = "rtl8365mb-mdio",
++		.of_match_table = rtl8365mb_of_match,
++	},
++	.probe  = realtek_mdio_probe,
++	.remove = realtek_mdio_remove,
++	.shutdown = realtek_mdio_shutdown,
++};
++
++static int rtl8365mb_init(void)
++{
++	int ret;
++
++	ret = realtek_mdio_driver_register(&rtl8365mb_mdio_driver);
++	if (ret)
++		return ret;
++
++	ret = realtek_smi_driver_register(&rtl8365mb_smi_driver);
++	if (ret) {
++		realtek_mdio_driver_unregister(&rtl8365mb_mdio_driver);
++		return ret;
++	}
++
++	return 0;
++}
++module_init(rtl8365mb_init);
++
++static void __exit rtl8365mb_exit(void)
++{
++	realtek_smi_driver_unregister(&rtl8365mb_smi_driver);
++	realtek_mdio_driver_unregister(&rtl8365mb_mdio_driver);
++}
++module_exit(rtl8365mb_exit);
+ 
+ MODULE_AUTHOR("Alvin Šipraga <alsi@bang-olufsen.dk>");
+ MODULE_DESCRIPTION("Driver for RTL8365MB-VC ethernet switch");
+ MODULE_LICENSE("GPL");
++MODULE_IMPORT_NS(REALTEK_DSA);
+diff --git a/drivers/net/dsa/realtek/rtl8366-core.c b/drivers/net/dsa/realtek/rtl8366-core.c
+index 59f98d2c8769..7c6520ba3a26 100644
+--- a/drivers/net/dsa/realtek/rtl8366-core.c
++++ b/drivers/net/dsa/realtek/rtl8366-core.c
+@@ -34,7 +34,7 @@ int rtl8366_mc_is_used(struct realtek_priv *priv, int mc_index, int *used)
+ 
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_mc_is_used);
++EXPORT_SYMBOL_NS_GPL(rtl8366_mc_is_used, REALTEK_DSA);
+ 
+ /**
+  * rtl8366_obtain_mc() - retrieve or allocate a VLAN member configuration
+@@ -187,7 +187,7 @@ int rtl8366_set_vlan(struct realtek_priv *priv, int vid, u32 member,
+ 
+ 	return ret;
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_set_vlan);
++EXPORT_SYMBOL_NS_GPL(rtl8366_set_vlan, REALTEK_DSA);
+ 
+ int rtl8366_set_pvid(struct realtek_priv *priv, unsigned int port,
+ 		     unsigned int vid)
+@@ -217,7 +217,7 @@ int rtl8366_set_pvid(struct realtek_priv *priv, unsigned int port,
+ 
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_set_pvid);
++EXPORT_SYMBOL_NS_GPL(rtl8366_set_pvid, REALTEK_DSA);
+ 
+ int rtl8366_enable_vlan4k(struct realtek_priv *priv, bool enable)
+ {
+@@ -243,7 +243,7 @@ int rtl8366_enable_vlan4k(struct realtek_priv *priv, bool enable)
+ 	priv->vlan4k_enabled = enable;
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_enable_vlan4k);
++EXPORT_SYMBOL_NS_GPL(rtl8366_enable_vlan4k, REALTEK_DSA);
+ 
+ int rtl8366_enable_vlan(struct realtek_priv *priv, bool enable)
+ {
+@@ -265,7 +265,7 @@ int rtl8366_enable_vlan(struct realtek_priv *priv, bool enable)
+ 
+ 	return ret;
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_enable_vlan);
++EXPORT_SYMBOL_NS_GPL(rtl8366_enable_vlan, REALTEK_DSA);
+ 
+ int rtl8366_reset_vlan(struct realtek_priv *priv)
+ {
+@@ -290,7 +290,7 @@ int rtl8366_reset_vlan(struct realtek_priv *priv)
+ 
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_reset_vlan);
++EXPORT_SYMBOL_NS_GPL(rtl8366_reset_vlan, REALTEK_DSA);
+ 
+ int rtl8366_vlan_add(struct dsa_switch *ds, int port,
+ 		     const struct switchdev_obj_port_vlan *vlan,
+@@ -345,7 +345,7 @@ int rtl8366_vlan_add(struct dsa_switch *ds, int port,
+ 
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_vlan_add);
++EXPORT_SYMBOL_NS_GPL(rtl8366_vlan_add, REALTEK_DSA);
+ 
+ int rtl8366_vlan_del(struct dsa_switch *ds, int port,
+ 		     const struct switchdev_obj_port_vlan *vlan)
+@@ -389,7 +389,7 @@ int rtl8366_vlan_del(struct dsa_switch *ds, int port,
+ 
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_vlan_del);
++EXPORT_SYMBOL_NS_GPL(rtl8366_vlan_del, REALTEK_DSA);
+ 
+ void rtl8366_get_strings(struct dsa_switch *ds, int port, u32 stringset,
+ 			 uint8_t *data)
+@@ -403,7 +403,7 @@ void rtl8366_get_strings(struct dsa_switch *ds, int port, u32 stringset,
+ 	for (i = 0; i < priv->num_mib_counters; i++)
+ 		ethtool_puts(&data, priv->mib_counters[i].name);
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_get_strings);
++EXPORT_SYMBOL_NS_GPL(rtl8366_get_strings, REALTEK_DSA);
+ 
+ int rtl8366_get_sset_count(struct dsa_switch *ds, int port, int sset)
+ {
+@@ -417,7 +417,7 @@ int rtl8366_get_sset_count(struct dsa_switch *ds, int port, int sset)
+ 
+ 	return priv->num_mib_counters;
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_get_sset_count);
++EXPORT_SYMBOL_NS_GPL(rtl8366_get_sset_count, REALTEK_DSA);
+ 
+ void rtl8366_get_ethtool_stats(struct dsa_switch *ds, int port, uint64_t *data)
+ {
+@@ -441,4 +441,4 @@ void rtl8366_get_ethtool_stats(struct dsa_switch *ds, int port, uint64_t *data)
+ 		data[i] = mibvalue;
+ 	}
+ }
+-EXPORT_SYMBOL_GPL(rtl8366_get_ethtool_stats);
++EXPORT_SYMBOL_NS_GPL(rtl8366_get_ethtool_stats, REALTEK_DSA);
+diff --git a/drivers/net/dsa/realtek/rtl8366rb.c b/drivers/net/dsa/realtek/rtl8366rb.c
+index e3b6a470ca67..e8526d502af8 100644
+--- a/drivers/net/dsa/realtek/rtl8366rb.c
++++ b/drivers/net/dsa/realtek/rtl8366rb.c
+@@ -23,6 +23,9 @@
+ #include <linux/regmap.h>
+ 
+ #include "realtek.h"
++#include "realtek-smi.h"
++#include "realtek-mdio.h"
++#include "rtl83xx.h"
+ 
+ #define RTL8366RB_PORT_NUM_CPU		5
+ #define RTL8366RB_NUM_PORTS		6
+@@ -182,27 +185,27 @@
+ #define RTL8366RB_LED_BLINKRATE_222MS		0x0004
+ #define RTL8366RB_LED_BLINKRATE_446MS		0x0005
+ 
++/* LED trigger event for each group */
+ #define RTL8366RB_LED_CTRL_REG			0x0431
+-#define RTL8366RB_LED_OFF			0x0
+-#define RTL8366RB_LED_DUP_COL			0x1
+-#define RTL8366RB_LED_LINK_ACT			0x2
+-#define RTL8366RB_LED_SPD1000			0x3
+-#define RTL8366RB_LED_SPD100			0x4
+-#define RTL8366RB_LED_SPD10			0x5
+-#define RTL8366RB_LED_SPD1000_ACT		0x6
+-#define RTL8366RB_LED_SPD100_ACT		0x7
+-#define RTL8366RB_LED_SPD10_ACT			0x8
+-#define RTL8366RB_LED_SPD100_10_ACT		0x9
+-#define RTL8366RB_LED_FIBER			0xa
+-#define RTL8366RB_LED_AN_FAULT			0xb
+-#define RTL8366RB_LED_LINK_RX			0xc
+-#define RTL8366RB_LED_LINK_TX			0xd
+-#define RTL8366RB_LED_MASTER			0xe
+-#define RTL8366RB_LED_FORCE			0xf
++#define RTL8366RB_LED_CTRL_OFFSET(led_group)	\
++	(4 * (led_group))
++#define RTL8366RB_LED_CTRL_MASK(led_group)	\
++	(0xf << RTL8366RB_LED_CTRL_OFFSET(led_group))
++
++/* The RTL8366RB_LED_X_X registers are used to manually set the LED state only
++ * when the corresponding LED group in RTL8366RB_LED_CTRL_REG is
++ * RTL8366RB_LED_FORCE. Otherwise, it is ignored.
++ */
+ #define RTL8366RB_LED_0_1_CTRL_REG		0x0432
+-#define RTL8366RB_LED_1_OFFSET			6
+ #define RTL8366RB_LED_2_3_CTRL_REG		0x0433
+-#define RTL8366RB_LED_3_OFFSET			6
++#define RTL8366RB_LED_X_X_CTRL_REG(led_group)	\
++	((led_group) <= 1 ? \
++		RTL8366RB_LED_0_1_CTRL_REG : \
++		RTL8366RB_LED_2_3_CTRL_REG)
++#define RTL8366RB_LED_0_X_CTRL_MASK		GENMASK(5, 0)
++#define RTL8366RB_LED_X_1_CTRL_MASK		GENMASK(11, 6)
++#define RTL8366RB_LED_2_X_CTRL_MASK		GENMASK(5, 0)
++#define RTL8366RB_LED_X_3_CTRL_MASK		GENMASK(11, 6)
+ 
+ #define RTL8366RB_MIB_COUNT			33
+ #define RTL8366RB_GLOBAL_MIB_COUNT		1
+@@ -346,14 +349,44 @@
+ #define RTL8366RB_GREEN_FEATURE_TX	BIT(0)
+ #define RTL8366RB_GREEN_FEATURE_RX	BIT(2)
+ 
++enum rtl8366_led_mode {
++	RTL8366RB_LED_OFF		= 0x0,
++	RTL8366RB_LED_DUP_COL		= 0x1,
++	RTL8366RB_LED_LINK_ACT		= 0x2,
++	RTL8366RB_LED_SPD1000		= 0x3,
++	RTL8366RB_LED_SPD100		= 0x4,
++	RTL8366RB_LED_SPD10		= 0x5,
++	RTL8366RB_LED_SPD1000_ACT	= 0x6,
++	RTL8366RB_LED_SPD100_ACT	= 0x7,
++	RTL8366RB_LED_SPD10_ACT		= 0x8,
++	RTL8366RB_LED_SPD100_10_ACT	= 0x9,
++	RTL8366RB_LED_FIBER		= 0xa,
++	RTL8366RB_LED_AN_FAULT		= 0xb,
++	RTL8366RB_LED_LINK_RX		= 0xc,
++	RTL8366RB_LED_LINK_TX		= 0xd,
++	RTL8366RB_LED_MASTER		= 0xe,
++	RTL8366RB_LED_FORCE		= 0xf,
++
++	__RTL8366RB_LED_MAX
++};
++
++struct rtl8366rb_led {
++	u8 port_num;
++	u8 led_group;
++	struct realtek_priv *priv;
++	struct led_classdev cdev;
++};
++
+ /**
+  * struct rtl8366rb - RTL8366RB-specific data
+  * @max_mtu: per-port max MTU setting
+  * @pvid_enabled: if PVID is set for respective port
++ * @leds: per-port and per-ledgroup led info
+  */
+ struct rtl8366rb {
+ 	unsigned int max_mtu[RTL8366RB_NUM_PORTS];
+ 	bool pvid_enabled[RTL8366RB_NUM_PORTS];
++	struct rtl8366rb_led leds[RTL8366RB_NUM_PORTS][RTL8366RB_NUM_LEDGROUPS];
+ };
+ 
+ static struct rtl8366_mib_counter rtl8366rb_mib_counters[] = {
+@@ -796,6 +829,207 @@ static int rtl8366rb_jam_table(const struct rtl8366rb_jam_tbl_entry *jam_table,
+ 	return 0;
+ }
+ 
++static int rb8366rb_set_ledgroup_mode(struct realtek_priv *priv,
++				      u8 led_group,
++				      enum rtl8366_led_mode mode)
++{
++	int ret;
++	u32 val;
++
++	val = mode << RTL8366RB_LED_CTRL_OFFSET(led_group);
++
++	ret = regmap_update_bits(priv->map,
++				 RTL8366RB_LED_CTRL_REG,
++				 RTL8366RB_LED_CTRL_MASK(led_group),
++				 val);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static inline u32 rtl8366rb_led_group_port_mask(u8 led_group, u8 port)
++{
++	switch (led_group) {
++	case 0:
++		return FIELD_PREP(RTL8366RB_LED_0_X_CTRL_MASK, BIT(port));
++	case 1:
++		return FIELD_PREP(RTL8366RB_LED_0_X_CTRL_MASK, BIT(port));
++	case 2:
++		return FIELD_PREP(RTL8366RB_LED_0_X_CTRL_MASK, BIT(port));
++	case 3:
++		return FIELD_PREP(RTL8366RB_LED_0_X_CTRL_MASK, BIT(port));
++	default:
++		return 0;
++	}
++}
++
++static int rb8366rb_get_port_led(struct rtl8366rb_led *led, bool enable)
++{
++	struct realtek_priv *priv = led->priv;
++	u8 led_group = led->led_group;
++	u8 port_num = led->port_num;
++	int ret;
++	u32 val;
++
++	if (led_group >= RTL8366RB_NUM_LEDGROUPS) {
++		dev_err(priv->dev, "Invalid LED group %d for port %d",
++			led_group, port_num);
++		return -EINVAL;
++	}
++
++	ret = regmap_read(priv->map, RTL8366RB_LED_X_X_CTRL_REG(led_group),
++			  &val);
++	if (ret) {
++		dev_err(priv->dev, "error reading LED on port %d group %d\n",
++			led_group, port_num);
++		return ret;
++	}
++
++	return !!(val & rtl8366rb_led_group_port_mask(led_group, port_num));
++}
++
++static int rb8366rb_set_port_led(struct rtl8366rb_led *led, bool enable)
++{
++	struct realtek_priv *priv = led->priv;
++	u8 led_group = led->led_group;
++	u8 port_num = led->port_num;
++	int ret;
++
++	if (led_group >= RTL8366RB_NUM_LEDGROUPS) {
++		dev_err(priv->dev, "Invalid LED group %d for port %d",
++			led_group, port_num);
++		return -EINVAL;
++	}
++
++	ret = regmap_update_bits(priv->map,
++				 RTL8366RB_LED_X_X_CTRL_REG(led_group),
++				 rtl8366rb_led_group_port_mask(led_group,
++							       port_num),
++				 enable ? 0xffff : 0);
++	if (ret) {
++		dev_err(priv->dev, "error updating LED on port %d group %d\n",
++			led_group, port_num);
++		return ret;
++	}
++
++	/* Change the LED group to manual controlled LEDs if required */
++	ret = rb8366rb_set_ledgroup_mode(priv, led_group, RTL8366RB_LED_FORCE);
++
++	if (ret) {
++		dev_err(priv->dev, "error updating LED GROUP group %d\n",
++			led_group);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int
++rtl8366rb_cled_brightness_set_blocking(struct led_classdev *ldev,
++				       enum led_brightness brightness)
++{
++	struct rtl8366rb_led *led = container_of(ldev, struct rtl8366rb_led,
++						 cdev);
++
++	return rb8366rb_set_port_led(led, brightness == LED_ON);
++}
++
++static int rtl8366rb_setup_led(struct realtek_priv *priv, struct dsa_port *dp,
++			       struct fwnode_handle *led_fwnode)
++{
++	struct rtl8366rb *rb = priv->chip_data;
++	struct led_init_data init_data = { };
++	struct rtl8366rb_led *led;
++	enum led_default_state state;
++	u32 led_group;
++	int ret;
++
++	ret = fwnode_property_read_u32(led_fwnode, "reg", &led_group);
++	if (ret)
++		return ret;
++
++	if (led_group >= RTL8366RB_NUM_LEDGROUPS) {
++		dev_warn(priv->dev, "Invalid LED reg %d defined for port %d",
++			 led_group, dp->index);
++		return -EINVAL;
++	}
++
++	led = &rb->leds[dp->index][led_group];
++	led->port_num = dp->index;
++	led->led_group = led_group;
++	led->priv = priv;
++
++	state = led_init_default_state_get(led_fwnode);
++	switch (state) {
++	case LEDS_DEFSTATE_ON:
++		led->cdev.brightness = 1;
++		rb8366rb_set_port_led(led, 1);
++		break;
++	case LEDS_DEFSTATE_KEEP:
++		led->cdev.brightness =
++			rb8366rb_get_port_led(led, 1);
++		break;
++	case LEDS_DEFSTATE_OFF:
++	default:
++		led->cdev.brightness = 0;
++		rb8366rb_set_port_led(led, 0);
++	}
++
++	led->cdev.max_brightness = 1;
++	led->cdev.brightness_set_blocking =
++		rtl8366rb_cled_brightness_set_blocking;
++	init_data.fwnode = led_fwnode;
++	init_data.devname_mandatory = true;
++
++	init_data.devicename = kasprintf(GFP_KERNEL, "Realtek-%d:0%d:%d",
++					 dp->ds->index, dp->index, led_group);
++	if (!init_data.devicename)
++		return -ENOMEM;
++
++	ret = devm_led_classdev_register_ext(priv->dev, &led->cdev, &init_data);
++	if (ret) {
++		dev_warn(priv->dev, "Failed to init LED %d for port %d",
++			 led_group, dp->index);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int rtl8366rb_setup_leds(struct realtek_priv *priv)
++{
++	struct device_node *leds_np, *led_np;
++	struct dsa_port *dp;
++	int ret;
++
++	dsa_switch_for_each_port(dp, &priv->ds) {
++		if (!dp->dn)
++			continue;
++
++		leds_np = of_get_child_by_name(dp->dn, "leds");
++		if (!leds_np) {
++			dev_dbg(priv->dev, "No leds defined for port %d",
++				dp->index);
++			continue;
++		}
++
++		for_each_child_of_node(leds_np, led_np) {
++			ret = rtl8366rb_setup_led(priv, dp,
++						  of_fwnode_handle(led_np));
++			if (ret) {
++				of_node_put(led_np);
++				break;
++			}
++		}
++
++		of_node_put(leds_np);
++		if (ret)
++			return ret;
++	}
++	return 0;
++}
++
+ static int rtl8366rb_setup(struct dsa_switch *ds)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+@@ -804,7 +1038,6 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
+ 	u32 chip_ver = 0;
+ 	u32 chip_id = 0;
+ 	int jam_size;
+-	u32 val;
+ 	int ret;
+ 	int i;
+ 
+@@ -998,26 +1231,19 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
+ 	 */
+ 	if (priv->leds_disabled) {
+ 		/* Turn everything off */
+-		regmap_update_bits(priv->map,
+-				   RTL8366RB_LED_0_1_CTRL_REG,
+-				   0x0FFF, 0);
+-		regmap_update_bits(priv->map,
+-				   RTL8366RB_LED_2_3_CTRL_REG,
+-				   0x0FFF, 0);
+ 		regmap_update_bits(priv->map,
+ 				   RTL8366RB_INTERRUPT_CONTROL_REG,
+ 				   RTL8366RB_P4_RGMII_LED,
+ 				   0);
+-		val = RTL8366RB_LED_OFF;
++
++		for (i = 0; i < RTL8366RB_NUM_LEDGROUPS; i++) {
++			ret = rb8366rb_set_ledgroup_mode(priv, i,
++							 RTL8366RB_LED_OFF);
++			if (ret)
++				return ret;
++		}
+ 	} else {
+-		/* TODO: make this configurable per LED */
+-		val = RTL8366RB_LED_FORCE;
+-	}
+-	for (i = 0; i < 4; i++) {
+-		ret = regmap_update_bits(priv->map,
+-					 RTL8366RB_LED_CTRL_REG,
+-					 0xf << (i * 4),
+-					 val << (i * 4));
++		ret = rtl8366rb_setup_leds(priv);
+ 		if (ret)
+ 			return ret;
+ 	}
+@@ -1030,12 +1256,10 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
+ 	if (ret)
+ 		dev_info(priv->dev, "no interrupt support\n");
+ 
+-	if (priv->setup_interface) {
+-		ret = priv->setup_interface(ds);
+-		if (ret) {
+-			dev_err(priv->dev, "could not set up MDIO bus\n");
+-			return -ENODEV;
+-		}
++	ret = rtl83xx_setup_user_mdio(ds);
++	if (ret) {
++		dev_err(priv->dev, "could not set up MDIO bus\n");
++		return -ENODEV;
+ 	}
+ 
+ 	return 0;
+@@ -1166,52 +1390,6 @@ rtl8366rb_mac_link_down(struct dsa_switch *ds, int port, unsigned int mode,
+ 	}
+ }
+ 
+-static void rb8366rb_set_port_led(struct realtek_priv *priv,
+-				  int port, bool enable)
+-{
+-	u16 val = enable ? 0x3f : 0;
+-	int ret;
+-
+-	if (priv->leds_disabled)
+-		return;
+-
+-	switch (port) {
+-	case 0:
+-		ret = regmap_update_bits(priv->map,
+-					 RTL8366RB_LED_0_1_CTRL_REG,
+-					 0x3F, val);
+-		break;
+-	case 1:
+-		ret = regmap_update_bits(priv->map,
+-					 RTL8366RB_LED_0_1_CTRL_REG,
+-					 0x3F << RTL8366RB_LED_1_OFFSET,
+-					 val << RTL8366RB_LED_1_OFFSET);
+-		break;
+-	case 2:
+-		ret = regmap_update_bits(priv->map,
+-					 RTL8366RB_LED_2_3_CTRL_REG,
+-					 0x3F, val);
+-		break;
+-	case 3:
+-		ret = regmap_update_bits(priv->map,
+-					 RTL8366RB_LED_2_3_CTRL_REG,
+-					 0x3F << RTL8366RB_LED_3_OFFSET,
+-					 val << RTL8366RB_LED_3_OFFSET);
+-		break;
+-	case 4:
+-		ret = regmap_update_bits(priv->map,
+-					 RTL8366RB_INTERRUPT_CONTROL_REG,
+-					 RTL8366RB_P4_RGMII_LED,
+-					 enable ? RTL8366RB_P4_RGMII_LED : 0);
+-		break;
+-	default:
+-		dev_err(priv->dev, "no LED for port %d\n", port);
+-		return;
+-	}
+-	if (ret)
+-		dev_err(priv->dev, "error updating LED on port %d\n", port);
+-}
+-
+ static int
+ rtl8366rb_port_enable(struct dsa_switch *ds, int port,
+ 		      struct phy_device *phy)
+@@ -1225,7 +1403,6 @@ rtl8366rb_port_enable(struct dsa_switch *ds, int port,
+ 	if (ret)
+ 		return ret;
+ 
+-	rb8366rb_set_port_led(priv, port, true);
+ 	return 0;
+ }
+ 
+@@ -1240,8 +1417,6 @@ rtl8366rb_port_disable(struct dsa_switch *ds, int port)
+ 				 BIT(port));
+ 	if (ret)
+ 		return;
+-
+-	rb8366rb_set_port_led(priv, port, false);
+ }
+ 
+ static int
+@@ -1650,6 +1825,7 @@ static int rtl8366rb_get_mc_index(struct realtek_priv *priv, int port, int *val)
+ 
+ static int rtl8366rb_set_mc_index(struct realtek_priv *priv, int port, int index)
+ {
++	struct dsa_switch *ds = &priv->ds;
+ 	struct rtl8366rb *rb;
+ 	bool pvid_enabled;
+ 	int ret;
+@@ -1674,7 +1850,7 @@ static int rtl8366rb_set_mc_index(struct realtek_priv *priv, int port, int index
+ 	 * not drop any untagged or C-tagged frames. Make sure to update the
+ 	 * filtering setting.
+ 	 */
+-	if (dsa_port_is_vlan_filtering(dsa_to_port(priv->ds, port)))
++	if (dsa_port_is_vlan_filtering(dsa_to_port(ds, port)))
+ 		ret = rtl8366rb_drop_untagged(priv, port, !pvid_enabled);
+ 
+ 	return ret;
+@@ -1718,7 +1894,7 @@ static int rtl8366rb_phy_read(struct realtek_priv *priv, int phy, int regnum)
+ 	if (phy > RTL8366RB_PHY_NO_MAX)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&priv->map_lock);
++	rtl83xx_lock(priv);
+ 
+ 	ret = regmap_write(priv->map_nolock, RTL8366RB_PHY_ACCESS_CTRL_REG,
+ 			   RTL8366RB_PHY_CTRL_READ);
+@@ -1746,7 +1922,7 @@ static int rtl8366rb_phy_read(struct realtek_priv *priv, int phy, int regnum)
+ 		phy, regnum, reg, val);
+ 
+ out:
+-	mutex_unlock(&priv->map_lock);
++	rtl83xx_unlock(priv);
+ 
+ 	return ret;
+ }
+@@ -1760,7 +1936,7 @@ static int rtl8366rb_phy_write(struct realtek_priv *priv, int phy, int regnum,
+ 	if (phy > RTL8366RB_PHY_NO_MAX)
+ 		return -EINVAL;
+ 
+-	mutex_lock(&priv->map_lock);
++	rtl83xx_lock(priv);
+ 
+ 	ret = regmap_write(priv->map_nolock, RTL8366RB_PHY_ACCESS_CTRL_REG,
+ 			   RTL8366RB_PHY_CTRL_WRITE);
+@@ -1777,22 +1953,11 @@ static int rtl8366rb_phy_write(struct realtek_priv *priv, int phy, int regnum,
+ 		goto out;
+ 
+ out:
+-	mutex_unlock(&priv->map_lock);
++	rtl83xx_unlock(priv);
+ 
+ 	return ret;
+ }
+ 
+-static int rtl8366rb_dsa_phy_read(struct dsa_switch *ds, int phy, int regnum)
+-{
+-	return rtl8366rb_phy_read(ds->priv, phy, regnum);
+-}
+-
+-static int rtl8366rb_dsa_phy_write(struct dsa_switch *ds, int phy, int regnum,
+-				   u16 val)
+-{
+-	return rtl8366rb_phy_write(ds->priv, phy, regnum, val);
+-}
+-
+ static int rtl8366rb_reset_chip(struct realtek_priv *priv)
+ {
+ 	int timeout = 10;
+@@ -1858,35 +2023,9 @@ static int rtl8366rb_detect(struct realtek_priv *priv)
+ 	return 0;
+ }
+ 
+-static const struct dsa_switch_ops rtl8366rb_switch_ops_smi = {
+-	.get_tag_protocol = rtl8366_get_tag_protocol,
+-	.setup = rtl8366rb_setup,
+-	.phylink_get_caps = rtl8366rb_phylink_get_caps,
+-	.phylink_mac_link_up = rtl8366rb_mac_link_up,
+-	.phylink_mac_link_down = rtl8366rb_mac_link_down,
+-	.get_strings = rtl8366_get_strings,
+-	.get_ethtool_stats = rtl8366_get_ethtool_stats,
+-	.get_sset_count = rtl8366_get_sset_count,
+-	.port_bridge_join = rtl8366rb_port_bridge_join,
+-	.port_bridge_leave = rtl8366rb_port_bridge_leave,
+-	.port_vlan_filtering = rtl8366rb_vlan_filtering,
+-	.port_vlan_add = rtl8366_vlan_add,
+-	.port_vlan_del = rtl8366_vlan_del,
+-	.port_enable = rtl8366rb_port_enable,
+-	.port_disable = rtl8366rb_port_disable,
+-	.port_pre_bridge_flags = rtl8366rb_port_pre_bridge_flags,
+-	.port_bridge_flags = rtl8366rb_port_bridge_flags,
+-	.port_stp_state_set = rtl8366rb_port_stp_state_set,
+-	.port_fast_age = rtl8366rb_port_fast_age,
+-	.port_change_mtu = rtl8366rb_change_mtu,
+-	.port_max_mtu = rtl8366rb_max_mtu,
+-};
+-
+-static const struct dsa_switch_ops rtl8366rb_switch_ops_mdio = {
++static const struct dsa_switch_ops rtl8366rb_switch_ops = {
+ 	.get_tag_protocol = rtl8366_get_tag_protocol,
+ 	.setup = rtl8366rb_setup,
+-	.phy_read = rtl8366rb_dsa_phy_read,
+-	.phy_write = rtl8366rb_dsa_phy_write,
+ 	.phylink_get_caps = rtl8366rb_phylink_get_caps,
+ 	.phylink_mac_link_up = rtl8366rb_mac_link_up,
+ 	.phylink_mac_link_down = rtl8366rb_mac_link_down,
+@@ -1925,16 +2064,66 @@ static const struct realtek_ops rtl8366rb_ops = {
+ };
+ 
+ const struct realtek_variant rtl8366rb_variant = {
+-	.ds_ops_smi = &rtl8366rb_switch_ops_smi,
+-	.ds_ops_mdio = &rtl8366rb_switch_ops_mdio,
++	.ds_ops = &rtl8366rb_switch_ops,
+ 	.ops = &rtl8366rb_ops,
+ 	.clk_delay = 10,
+ 	.cmd_read = 0xa9,
+ 	.cmd_write = 0xa8,
+ 	.chip_data_sz = sizeof(struct rtl8366rb),
+ };
+-EXPORT_SYMBOL_GPL(rtl8366rb_variant);
++
++static const struct of_device_id rtl8366rb_of_match[] = {
++	{ .compatible = "realtek,rtl8366rb", .data = &rtl8366rb_variant, },
++	{ /* sentinel */ },
++};
++MODULE_DEVICE_TABLE(of, rtl8366rb_of_match);
++
++static struct platform_driver rtl8366rb_smi_driver = {
++	.driver = {
++		.name = "rtl8366rb-smi",
++		.of_match_table = rtl8366rb_of_match,
++	},
++	.probe  = realtek_smi_probe,
++	.remove_new = realtek_smi_remove,
++	.shutdown = realtek_smi_shutdown,
++};
++
++static struct mdio_driver rtl8366rb_mdio_driver = {
++	.mdiodrv.driver = {
++		.name = "rtl8366rb-mdio",
++		.of_match_table = rtl8366rb_of_match,
++	},
++	.probe  = realtek_mdio_probe,
++	.remove = realtek_mdio_remove,
++	.shutdown = realtek_mdio_shutdown,
++};
++
++static int rtl8366rb_init(void)
++{
++	int ret;
++
++	ret = realtek_mdio_driver_register(&rtl8366rb_mdio_driver);
++	if (ret)
++		return ret;
++
++	ret = realtek_smi_driver_register(&rtl8366rb_smi_driver);
++	if (ret) {
++		realtek_mdio_driver_unregister(&rtl8366rb_mdio_driver);
++		return ret;
++	}
++
++	return 0;
++}
++module_init(rtl8366rb_init);
++
++static void __exit rtl8366rb_exit(void)
++{
++	realtek_smi_driver_unregister(&rtl8366rb_smi_driver);
++	realtek_mdio_driver_unregister(&rtl8366rb_mdio_driver);
++}
++module_exit(rtl8366rb_exit);
+ 
+ MODULE_AUTHOR("Linus Walleij <linus.walleij@linaro.org>");
+ MODULE_DESCRIPTION("Driver for RTL8366RB ethernet switch");
+ MODULE_LICENSE("GPL");
++MODULE_IMPORT_NS(REALTEK_DSA);
+diff --git a/drivers/net/dsa/realtek/rtl83xx.c b/drivers/net/dsa/realtek/rtl83xx.c
+new file mode 100644
+index 000000000000..3d1f541936b8
+--- /dev/null
++++ b/drivers/net/dsa/realtek/rtl83xx.c
+@@ -0,0 +1,345 @@
++// SPDX-License-Identifier: GPL-2.0+
++
++#include <linux/module.h>
++#include <linux/regmap.h>
++#include <linux/of_mdio.h>
++
++#include "realtek.h"
++#include "rtl83xx.h"
++
++/**
++ * rtl83xx_lock() - Locks the mutex used by regmaps
++ * @ctx: realtek_priv pointer
++ *
++ * This function is passed to regmap to be used as the lock function.
++ * It is also used externally to block regmap before executing multiple
++ * operations that must happen in sequence (which will use
++ * realtek_priv.map_nolock instead).
++ *
++ * Context: Can sleep. Holds priv->map_lock lock.
++ * Return: nothing
++ */
++void rtl83xx_lock(void *ctx)
++{
++	struct realtek_priv *priv = ctx;
++
++	mutex_lock(&priv->map_lock);
++}
++EXPORT_SYMBOL_NS_GPL(rtl83xx_lock, REALTEK_DSA);
++
++/**
++ * rtl83xx_unlock() - Unlocks the mutex used by regmaps
++ * @ctx: realtek_priv pointer
++ *
++ * This function unlocks the lock acquired by rtl83xx_lock.
++ *
++ * Context: Releases priv->map_lock lock.
++ * Return: nothing
++ */
++void rtl83xx_unlock(void *ctx)
++{
++	struct realtek_priv *priv = ctx;
++
++	mutex_unlock(&priv->map_lock);
++}
++EXPORT_SYMBOL_NS_GPL(rtl83xx_unlock, REALTEK_DSA);
++
++static int rtl83xx_user_mdio_read(struct mii_bus *bus, int addr, int regnum)
++{
++	struct realtek_priv *priv = bus->priv;
++
++	return priv->ops->phy_read(priv, addr, regnum);
++}
++
++static int rtl83xx_user_mdio_write(struct mii_bus *bus, int addr, int regnum,
++				   u16 val)
++{
++	struct realtek_priv *priv = bus->priv;
++
++	return priv->ops->phy_write(priv, addr, regnum, val);
++}
++
++/**
++ * rtl83xx_setup_user_mdio() - register the user mii bus driver
++ * @ds: DSA switch associated with this slave_mii_bus
++ *
++ * Registers the MDIO bus for built-in Ethernet PHYs, and associates it with
++ * the mandatory 'mdio' child OF node of the switch.
++ *
++ * Context: Can sleep.
++ * Return: 0 on success, negative value for failure.
++ */
++int rtl83xx_setup_user_mdio(struct dsa_switch *ds)
++{
++	struct realtek_priv *priv = ds->priv;
++	struct device_node *mdio_np;
++	struct mii_bus *bus;
++	int ret = 0;
++
++	mdio_np = of_get_child_by_name(priv->dev->of_node, "mdio");
++	if (!mdio_np) {
++		dev_err(priv->dev, "no MDIO bus node\n");
++		return -ENODEV;
++	}
++
++	bus = devm_mdiobus_alloc(priv->dev);
++	if (!bus) {
++		ret = -ENOMEM;
++		goto err_put_node;
++	}
++
++	bus->priv = priv;
++	bus->name = "Realtek user MII";
++	bus->read = rtl83xx_user_mdio_read;
++	bus->write = rtl83xx_user_mdio_write;
++	snprintf(bus->id, MII_BUS_ID_SIZE, "%s:user_mii", dev_name(priv->dev));
++	bus->parent = priv->dev;
++
++	ret = devm_of_mdiobus_register(priv->dev, bus, mdio_np);
++	if (ret) {
++		dev_err(priv->dev, "unable to register MDIO bus %s\n",
++			bus->id);
++		goto err_put_node;
++	}
++
++	priv->slave_mii_bus = bus;
++
++err_put_node:
++	of_node_put(mdio_np);
++
++	return ret;
++}
++EXPORT_SYMBOL_NS_GPL(rtl83xx_setup_user_mdio, REALTEK_DSA);
++
++/**
++ * rtl83xx_probe() - probe a Realtek switch
++ * @dev: the device being probed
++ * @interface_info: specific management interface info.
++ *
++ * This function initializes realtek_priv and reads data from the device tree
++ * node. The switch is hard resetted if a method is provided.
++ *
++ * Context: Can sleep.
++ * Return: Pointer to the realtek_priv or ERR_PTR() in case of failure.
++ *
++ * The realtek_priv pointer does not need to be freed as it is controlled by
++ * devres.
++ */
++struct realtek_priv *
++rtl83xx_probe(struct device *dev,
++	      const struct realtek_interface_info *interface_info)
++{
++	const struct realtek_variant *var;
++	struct realtek_priv *priv;
++	struct regmap_config rc = {
++		.reg_bits = 10, /* A4..A0 R4..R0 */
++		.val_bits = 16,
++		.reg_stride = 1,
++		.max_register = 0xffff,
++		.reg_format_endian = REGMAP_ENDIAN_BIG,
++		.reg_read = interface_info->reg_read,
++		.reg_write = interface_info->reg_write,
++		.cache_type = REGCACHE_NONE,
++		.lock = rtl83xx_lock,
++		.unlock = rtl83xx_unlock,
++	};
++	int ret;
++
++	var = of_device_get_match_data(dev);
++	if (!var)
++		return ERR_PTR(-EINVAL);
++
++	priv = devm_kzalloc(dev, size_add(sizeof(*priv), var->chip_data_sz),
++			    GFP_KERNEL);
++	if (!priv)
++		return ERR_PTR(-ENOMEM);
++
++	mutex_init(&priv->map_lock);
++
++	rc.lock_arg = priv;
++	priv->map = devm_regmap_init(dev, NULL, priv, &rc);
++	if (IS_ERR(priv->map)) {
++		ret = PTR_ERR(priv->map);
++		dev_err(dev, "regmap init failed: %d\n", ret);
++		return ERR_PTR(ret);
++	}
++
++	rc.disable_locking = true;
++	priv->map_nolock = devm_regmap_init(dev, NULL, priv, &rc);
++	if (IS_ERR(priv->map_nolock)) {
++		ret = PTR_ERR(priv->map_nolock);
++		dev_err(dev, "regmap init failed: %d\n", ret);
++		return ERR_PTR(ret);
++	}
++
++	/* Link forward and backward */
++	priv->dev = dev;
++	priv->variant = var;
++	priv->ops = var->ops;
++	priv->chip_data = (void *)priv + sizeof(*priv);
++
++	spin_lock_init(&priv->lock);
++
++	priv->leds_disabled = of_property_read_bool(dev->of_node,
++						    "realtek,disable-leds");
++
++	/* TODO: if power is software controlled, set up any regulators here */
++	priv->reset_ctl = devm_reset_control_get_optional(dev, NULL);
++	if (IS_ERR(priv->reset_ctl)) {
++		ret = PTR_ERR(priv->reset_ctl);
++		dev_err_probe(dev, ret, "failed to get reset control\n");
++		return ERR_CAST(priv->reset_ctl);
++	}
++
++	priv->reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
++	if (IS_ERR(priv->reset)) {
++		dev_err(dev, "failed to get RESET GPIO\n");
++		return ERR_CAST(priv->reset);
++	}
++
++	dev_set_drvdata(dev, priv);
++
++	if (priv->reset_ctl || priv->reset) {
++		rtl83xx_reset_assert(priv);
++		dev_dbg(dev, "asserted RESET\n");
++		msleep(REALTEK_HW_STOP_DELAY);
++		rtl83xx_reset_deassert(priv);
++		msleep(REALTEK_HW_START_DELAY);
++		dev_dbg(dev, "deasserted RESET\n");
++	}
++
++	return priv;
++}
++EXPORT_SYMBOL_NS_GPL(rtl83xx_probe, REALTEK_DSA);
++
++/**
++ * rtl83xx_register_switch() - detects and register a switch
++ * @priv: realtek_priv pointer
++ *
++ * This function first checks the switch chip ID and register a DSA
++ * switch.
++ *
++ * Context: Can sleep. Takes and releases priv->map_lock.
++ * Return: 0 on success, negative value for failure.
++ */
++int rtl83xx_register_switch(struct realtek_priv *priv)
++{
++	struct dsa_switch *ds = &priv->ds;
++	int ret;
++
++	ret = priv->ops->detect(priv);
++	if (ret) {
++		dev_err_probe(priv->dev, ret, "unable to detect switch\n");
++		return ret;
++	}
++
++	ds->priv = priv;
++	ds->dev = priv->dev;
++	ds->ops = priv->variant->ds_ops;
++	ds->num_ports = priv->num_ports;
++
++	ret = dsa_register_switch(ds);
++	if (ret) {
++		dev_err_probe(priv->dev, ret, "unable to register switch\n");
++		return ret;
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_NS_GPL(rtl83xx_register_switch, REALTEK_DSA);
++
++/**
++ * rtl83xx_unregister_switch() - unregister a switch
++ * @priv: realtek_priv pointer
++ *
++ * This function unregister a DSA switch.
++ *
++ * Context: Can sleep.
++ * Return: Nothing.
++ */
++void rtl83xx_unregister_switch(struct realtek_priv *priv)
++{
++	struct dsa_switch *ds = &priv->ds;
++
++	dsa_unregister_switch(ds);
++}
++EXPORT_SYMBOL_NS_GPL(rtl83xx_unregister_switch, REALTEK_DSA);
++
++/**
++ * rtl83xx_shutdown() - shutdown a switch
++ * @priv: realtek_priv pointer
++ *
++ * This function shuts down the DSA switch and cleans the platform driver data,
++ * to prevent realtek_{smi,mdio}_remove() from running afterwards, which is
++ * possible if the parent bus implements its own .shutdown() as .remove().
++ *
++ * Context: Can sleep.
++ * Return: Nothing.
++ */
++void rtl83xx_shutdown(struct realtek_priv *priv)
++{
++	struct dsa_switch *ds = &priv->ds;
++
++	dsa_switch_shutdown(ds);
++
++	dev_set_drvdata(priv->dev, NULL);
++}
++EXPORT_SYMBOL_NS_GPL(rtl83xx_shutdown, REALTEK_DSA);
++
++/**
++ * rtl83xx_remove() - Cleanup a realtek switch driver
++ * @priv: realtek_priv pointer
++ *
++ * If a method is provided, this function asserts the hard reset of the switch
++ * in order to avoid leaking traffic when the driver is gone.
++ *
++ * Context: Might sleep if priv->gdev->chip->can_sleep.
++ * Return: nothing
++ */
++void rtl83xx_remove(struct realtek_priv *priv)
++{
++	/* leave the device reset asserted */
++	rtl83xx_reset_assert(priv);
++}
++EXPORT_SYMBOL_NS_GPL(rtl83xx_remove, REALTEK_DSA);
++
++void rtl83xx_reset_assert(struct realtek_priv *priv)
++{
++	int ret;
++
++	if (priv->reset_ctl) {
++		ret = reset_control_assert(priv->reset_ctl);
++		if (!ret)
++			return;
++
++		dev_warn(priv->dev,
++			 "Failed to assert the switch reset control: %pe\n",
++			 ERR_PTR(ret));
++	}
++
++	if (priv->reset)
++		gpiod_set_value(priv->reset, true);
++}
++
++void rtl83xx_reset_deassert(struct realtek_priv *priv)
++{
++	int ret;
++
++	if (priv->reset_ctl) {
++		ret = reset_control_deassert(priv->reset_ctl);
++		if (!ret)
++			return;
++
++		dev_warn(priv->dev,
++			 "Failed to deassert the switch reset control: %pe\n",
++			 ERR_PTR(ret));
++	}
++
++	if (priv->reset)
++		gpiod_set_value(priv->reset, false);
++}
++
++MODULE_AUTHOR("Luiz Angelo Daros de Luca <luizluca@gmail.com>");
++MODULE_AUTHOR("Linus Walleij <linus.walleij@linaro.org>");
++MODULE_DESCRIPTION("Realtek DSA switches common module");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/net/dsa/realtek/rtl83xx.h b/drivers/net/dsa/realtek/rtl83xx.h
+new file mode 100644
+index 000000000000..c8a0ff8fd75e
+--- /dev/null
++++ b/drivers/net/dsa/realtek/rtl83xx.h
+@@ -0,0 +1,24 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++
++#ifndef _RTL83XX_H
++#define _RTL83XX_H
++
++struct realtek_interface_info {
++	int (*reg_read)(void *ctx, u32 reg, u32 *val);
++	int (*reg_write)(void *ctx, u32 reg, u32 val);
++};
++
++void rtl83xx_lock(void *ctx);
++void rtl83xx_unlock(void *ctx);
++int rtl83xx_setup_user_mdio(struct dsa_switch *ds);
++struct realtek_priv *
++rtl83xx_probe(struct device *dev,
++	      const struct realtek_interface_info *interface_info);
++int rtl83xx_register_switch(struct realtek_priv *priv);
++void rtl83xx_unregister_switch(struct realtek_priv *priv);
++void rtl83xx_shutdown(struct realtek_priv *priv);
++void rtl83xx_remove(struct realtek_priv *priv);
++void rtl83xx_reset_assert(struct realtek_priv *priv);
++void rtl83xx_reset_deassert(struct realtek_priv *priv);
++
++#endif /* _RTL83XX_H */
