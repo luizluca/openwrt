@@ -59,14 +59,137 @@
 		};
 	};
 
-	rtl8366rb {
+	switch {
 		compatible = "realtek,rtl8366rb";
-		sda-gpios = <&gpio 18 GPIO_ACTIVE_HIGH>;
-		sck-gpios = <&gpio 19 GPIO_ACTIVE_HIGH>;
+		mdc-gpios = <&gpio 19 GPIO_ACTIVE_HIGH>;
+		mdio-gpios = <&gpio 18 GPIO_ACTIVE_HIGH>;
 
 		resets = <&rst 8>;
-		reset-names = "switch";
+
+		/* The switch interrupt pin is not connected or unknown.
+		 * The driver will use polling. */
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				label = "wan";
+				phy-handle = <&ethphy0>;
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_WAN;
+						default-state = "keep";
+					 };
+				};
+			};
+			port@1 {
+				reg = <1>;
+				label = "lan1";
+				phy-handle = <&ethphy1>;
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_LAN;
+						default-state = "keep";
+					};
+				};
+
+			};
+			port@2 {
+				reg = <2>;
+				label = "lan2";
+				phy-handle = <&ethphy2>;
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_LAN;
+						default-state = "keep";
+					};
+				};
+			};
+			port@3 {
+				reg = <3>;
+				label = "lan3";
+				phy-handle = <&ethphy3>;
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_LAN;
+						default-state = "keep";
+					};
+				};
+			};
+			port@4 {
+				reg = <4>;
+				label = "lan4";
+				phy-handle = <&ethphy4>;
+				leds {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					led@0 {
+						reg = <0>;
+						color = <LED_COLOR_ID_GREEN>;
+						function = LED_FUNCTION_LAN;
+						default-state = "keep";
+					};
+				};
+			};
+			port@5 {
+				reg = <5>;
+				ethernet = <&eth0>;
+				phy-mode = "rgmii";
+				fixed-link {
+					speed = <1000>;
+					full-duplex;
+				};
+			};
+
+		};
+
+		mdio {
+			compatible = "realtek,smi-mdio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ethphy0: ethernet-phy@0 {
+				reg = <0>;
+			};
+			ethphy1: ethernet-phy@1 {
+				reg = <1>;
+			};
+			ethphy2: ethernet-phy@2 {
+				reg = <2>;
+			};
+			ethphy3: ethernet-phy@3 {
+				reg = <3>;
+			};
+			ethphy4: ethernet-phy@4 {
+				reg = <4>;
+			};
+		};
 	};
+
+
+
 };
 
 &usb {

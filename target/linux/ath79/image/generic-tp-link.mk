@@ -710,10 +710,14 @@ define Device/tplink_tl-wr1043nd-v1
   SOC := ar9132
   DEVICE_MODEL := TL-WR1043N/ND
   DEVICE_VARIANT := v1
-  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-switch-rtl8366rb
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-dsa-rtl8366rb \
+		     -kmod-switch-ip17xx -kmod-switch-ar8xxx -swconfig -kmod-swconfig \
+		     -kmod-switch-rtl8366rb
   TPLINK_HWID := 0x10430001
   SUPPORTED_DEVICES += tl-wr1043nd
   DEFAULT := n
+  DEVICE_COMPAT_VERSION := 1.1
+  DEVICE_COMPAT_MESSAGE := Config cannot be migrated from swconfig to DSA
 endef
 TARGET_DEVICES += tplink_tl-wr1043nd-v1
 
