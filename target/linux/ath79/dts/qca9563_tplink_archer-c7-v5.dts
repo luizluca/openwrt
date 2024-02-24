@@ -6,6 +6,10 @@
 	compatible = "tplink,archer-c7-v5", "qca,qca9563";
 	model = "TP-Link Archer C7 v5";
 
+	chosen {
+		bootargs = "console=ttyUSB0,115200 console=ttyS0,115200";
+	};
+
 	aliases {
 		label-mac-device = &eth0;
 	};

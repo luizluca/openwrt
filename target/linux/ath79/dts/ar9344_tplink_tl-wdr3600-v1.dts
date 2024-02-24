@@ -5,4 +5,9 @@
 / {
 	model = "TP-Link TL-WDR3600 v1";
 	compatible = "tplink,tl-wdr3600-v1", "qca,ar9344";
+
+	chosen {
+		bootargs = "console=ttyUSB0,115200 console=ttyS0,115200";
+	};
+
 };

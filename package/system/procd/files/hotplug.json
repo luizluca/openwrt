@@ -50,6 +50,10 @@
 				]
 			],
 			[ "if",
+				[ "regex", "DEVNAME", "^ttyUSB" ],
+				[ "start-console", "%DEVNAME%" ]
+			],
+			[ "if",
 				[ "regex", "DEVNAME", "^ttyGS" ],
 				[ "start-console", "%DEVNAME%" ]
 			]

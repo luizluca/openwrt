@@ -10,6 +10,10 @@
 	compatible = "tplink,tl-wr1043nd-v1", "qca,ar9132";
 	model = "TP-Link TL-WR1043ND v1";
 
+	chosen {
+		bootargs = "console=ttyUSB0,115200 console=ttyS0,115200";
+	};
+
 	aliases {
 		led-boot = &led_system;
 		led-failsafe = &led_system;
