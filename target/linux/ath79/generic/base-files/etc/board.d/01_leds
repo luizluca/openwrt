@@ -36,9 +36,11 @@ tplink,tl-wa1201-v2|\
 ubnt,litebeam-m5-xw)
 	ucidef_set_led_netdev "lan" "LAN" "green:lan" "eth0"
 	;;
-tplink,tl-wdr3600-v1|\
-tplink,tl-wdr4300-v1|\
-tplink,tl-wdr4300-v1-il)
+tplink,archer-a7-v5|\
+tplink,archer-c5-v1|\
+tplink,archer-c7-v1|\
+tplink,archer-c7-v2|\
+tplink,tl-wdr7500-v3)
 	# rx,tx is ok but not with link in current kernel. It seems to enable offloading
 	# that does not support link (yet). However, link_10,link_100,link_1000 can
 	# replace link and it works with tx rx
