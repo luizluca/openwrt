@@ -1,0 +1,25 @@
+
+config_usbserial() {
+       local consoles="$(sed -e 's/ /\n/g' /proc/cmdline | grep '^console=' | sed -e 's/^console=//' -e 's/,.*//')"
+       [ -n "$consoles" ] || consoles=console
+       for console in $consoles; do
+		case "$console" in
+		ttyUSB*)
+			for mod in aircable ark3116 belkin_sa ch341 cp210x cyberjack cypress_m8 digi_acceleport empeg f81232 f81534 ftdi_sio garmin_gps io_edgeport io_ti ipaq ipw ir-usb iuu_phoenix keyspan keyspan_pda kl5kusb105 kobil_sct mct_u232 metro-usb mos7720 mos7840 mxuport navman omninet opticon oti6858 pl2303 qcaux qcserial quatech2 sierra spcp8x5 ssu100 symbolserial ti_usb_3410_5052 upd78f0730 visor whiteheat wishbone-serial xr_serial xsens_mt; do
+				[ -r "/lib/modules/$(uname -r)/$mod.ko" ] && modprobe $mod
+			done
+
+			if ! [ -c "/dev/$console" ]; then
+				echo "/lib/preinit/11_usbserial: Creating missing /dev/$console" > "/dev/kmsg"
+				mknod "/dev/$console" c 188 ${console#ttyUSB}
+				echo "/lib/preinit/11_usbserial: Created missing /dev/$console" > "/dev/$console"
+			fi
+			echo "/lib/preinit/11_usbserial: Hello USB Serial $console." > "/dev/$console"
+		;;
+		*)
+			continue;
+		esac
+       done
+}
+
+boot_hook_add preinit_main config_usbserial

@@ -1,0 +1,30 @@
+#!/bin/sh
+
+# Avoid conflict with procd askconsole (it should reconnect the primary
+# console by itself
+CONSOLES="$(cat /sys/class/tty/console/active 2>/dev/null)"
+
+IS_CONSOLE=false
+for console in $CONSOLES; do
+	if [ "$DEVNAME" = "$console" ]; then
+		IS_CONSOLE=true
+	fi
+	PRIMARY_CONSOLE=$console
+done
+
+$IS_CONSOLE || return 0
+# prod askconsole deals with this one
+[ "$DEVNAME" = "$PRIMARY_CONSOLE" ] && return 0
+
+if [ "$ACTION" = "add" ]; then
+	logger -t secondary-console "Launching another askconsole in /dev/$DEVNAME"
+	procd_open_service "console_$DEVNAME"
+	procd_set_param command /sbin/askfirst /bin/ash --login
+	procd_set_param stdio "/dev/$DEVNAME"
+	procd_set_param respawn
+	procd_close_service
+elif [ "$ACTION" = "remove" ]; then
+	logger -t secondary-console "Terminating askconsole in /dev/$DEVNAME"
+	procd_open_service "console_$DEVNAME"
+	procd_stop_service
+fi
