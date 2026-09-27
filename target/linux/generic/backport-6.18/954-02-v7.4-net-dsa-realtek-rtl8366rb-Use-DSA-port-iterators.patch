@@ -1,0 +1,96 @@
+From cc61d5d7c205502d87f720ef86de9a6819f913e7 Mon Sep 17 00:00:00 2001
+From: Linus Walleij <linusw@kernel.org>
+Date: Tue, 30 Jun 2026 13:19:43 +0200
+Subject: [PATCH 2/6] net: dsa: realtek: rtl8366rb: Use DSA port iterators
+
+Instead of custom loops for intializing the ports (including the
+CPU port) use the DSA helpers dsa_switch_for_each_port() and
+dsa_switch_for_each_cpu_port() following the pattern in RTL8365MB by
+accumulatong masks for the upstream and downstream ports.
+
+This gives us similar enough code to the RTL8365MB that we
+can start using more generic rtl83xx helpers.
+
+Reviewed-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Signed-off-by: Linus Walleij <linusw@kernel.org>
+Link: https://patch.msgid.link/20260630-rtl8366rb-improvements-v2-3-05eb9d6a37f5@kernel.org
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/rtl8366rb.c | 49 ++++++++++++++++++++++++-----
+ 1 file changed, 41 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8366rb.c b/drivers/net/dsa/realtek/rtl8366rb.c
+index 8b57ef3bf03a..64215a0d5d6d 100644
+--- a/drivers/net/dsa/realtek/rtl8366rb.c
++++ b/drivers/net/dsa/realtek/rtl8366rb.c
+@@ -824,7 +824,10 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+ 	const struct rtl8366rb_jam_tbl_entry *jam_table;
++	u32 downports_mask = 0;
+ 	struct rtl8366rb *rb;
++	u32 upports_mask = 0;
++	struct dsa_port *dp;
+ 	u32 chip_ver = 0;
+ 	u32 chip_id = 0;
+ 	int jam_size;
+@@ -895,17 +898,47 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
+ 	if (ret)
+ 		return ret;
+ 
+-	/* Isolate all user ports so they can only send packets to itself and the CPU port */
+-	for (i = 0; i < RTL8366RB_PORT_NUM_CPU; i++) {
+-		ret = rtl8366rb_port_set_isolation(priv, i, BIT(RTL8366RB_PORT_NUM_CPU));
++	/* Start with all ports blocked, including unused ports */
++	dsa_switch_for_each_port(dp, ds) {
++		/* Start with all ports completely isolated */
++		ret = rtl8366rb_port_set_isolation(priv, dp->index, 0);
++		if (ret)
++			return ret;
++
++		/* Collect CPU ports. If we support cascade switches, it should
++		 * also include the upstream DSA ports.
++		 */
++		if (!dsa_port_is_cpu(dp))
++			continue;
++
++		upports_mask |= BIT(dp->index);
++	}
++
++	/* Configure user ports */
++	dsa_switch_for_each_port(dp, ds) {
++		if (!dsa_port_is_user(dp))
++			continue;
++
++		/* Forward only to the CPU */
++		ret = rtl8366rb_port_set_isolation(priv, dp->index, upports_mask);
++		if (ret)
++			return ret;
++
++		/* If we support cascade switches, it should also include the
++		 * downstream DSA ports.
++		 */
++		downports_mask |= BIT(dp->index);
++	}
++
++	/* Configure CPU ports. If we support cascade switches, this will also
++	 * include DSA ports.
++	 */
++	dsa_switch_for_each_cpu_port(dp, ds) {
++		/* Forward to all user ports */
++		ret = rtl8366rb_port_set_isolation(priv, dp->index, downports_mask);
+ 		if (ret)
+ 			return ret;
+ 	}
+-	/* CPU port can send packets to all ports */
+-	ret = rtl8366rb_port_set_isolation(priv, RTL8366RB_PORT_NUM_CPU,
+-					   dsa_user_ports(ds));
+-	if (ret)
+-		return ret;
+ 
+ 	/* Set up the "green ethernet" feature */
+ 	ret = rtl8366rb_jam_table(rtl8366rb_green_jam,
+-- 
+2.55.0
+

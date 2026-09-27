@@ -1,0 +1,35 @@
+From 6233d1ee37717e81697a08aa7b61910f68be7b1f Mon Sep 17 00:00:00 2001
+From: Siddharth Vadapalli <s-vadapalli@ti.com>
+Date: Fri, 4 Sep 2026 10:06:26 +0530
+Subject: [PATCH 02/17] net: dsa: realtek: rtl8365mb: Remove comma after
+ sentinel-entry in match-table
+
+Since sentinel is the last entry and we do not expect further entries
+following it, remove the comma.
+
+Reviewed-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Reviewed-by: Linus Walleij <linusw@kernel.org>
+Signed-off-by: Siddharth Vadapalli <s-vadapalli@ti.com>
+Link: https://patch.msgid.link/20260904043724.2955444-21-s-vadapalli@ti.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/rtl8365mb_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
+index 4c305756116c..f8220d832e46 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb_main.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_main.c
+@@ -3352,7 +3352,7 @@ const struct realtek_variant rtl8365mb_variant = {
+ 
+ static const struct of_device_id rtl8365mb_of_match[] = {
+ 	{ .compatible = "realtek,rtl8365mb", .data = &rtl8365mb_variant, },
+-	{ /* sentinel */ },
++	{ /* sentinel */ }
+ };
+ MODULE_DEVICE_TABLE(of, rtl8365mb_of_match);
+ 
+-- 
+2.55.0
+
