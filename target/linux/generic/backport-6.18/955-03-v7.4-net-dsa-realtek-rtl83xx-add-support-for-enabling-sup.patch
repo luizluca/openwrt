@@ -1,0 +1,118 @@
+From f82364499682159e369e453922fd25d27c3a833f Mon Sep 17 00:00:00 2001
+From: Ahmad Fatoum <a.fatoum@pengutronix.de>
+Date: Mon, 31 Aug 2026 14:36:36 +0200
+Subject: [PATCH] net: dsa: realtek: rtl83xx: add support for enabling supplies
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The power supplies powering the IC may not necessarily be enabled by the
+time the driver probes.  The binding describes the power rails, so enable
+them at probe with devm_regulator_bulk_get_enable(), before the reset line
+is requested and driven, so the chip is powered before its pins are driven.
+
+Boards that do not describe these supplies fall back to dummy regulators
+(with a "supply not found" warning) and keep working as before.
+
+A board that describes supplies but no reset line still needs to wait for
+the chip to boot before the first register access, so apply the existing
+start delay in that case too.
+
+Signed-off-by: Alvin Šipraga <alsi@bang-olufsen.dk>
+Signed-off-by: Ahmad Fatoum <a.fatoum@pengutronix.de>
+Co-developed-by: Oleksij Rempel <o.rempel@pengutronix.de>
+Signed-off-by: Oleksij Rempel <o.rempel@pengutronix.de>
+Reviewed-by: Linus Walleij <linusw@kernel.org>
+Reviewed-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Link: https://patch.msgid.link/20260831123637.666457-3-o.rempel@pengutronix.de
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/realtek.h        |  3 +++
+ drivers/net/dsa/realtek/rtl8365mb_main.c |  6 ++++++
+ drivers/net/dsa/realtek/rtl83xx.c        | 17 ++++++++++++++++-
+ 3 files changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/dsa/realtek/realtek.h b/drivers/net/dsa/realtek/realtek.h
+index 6e0148cee8d8..75a127545e5d 100644
+--- a/drivers/net/dsa/realtek/realtek.h
++++ b/drivers/net/dsa/realtek/realtek.h
+@@ -166,6 +166,9 @@ struct realtek_variant {
+ 	u8 cmd_read;
+ 	u8 cmd_write;
+ 	size_t chip_data_sz;
++	/* Regulator supplies to enable at probe, or NULL */
++	const char *const *supplies;
++	int num_supplies;
+ };
+ 
+ /* RTL8366 library helpers */
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
+index 728231d8f94c..4c305756116c 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb_main.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_main.c
+@@ -3334,6 +3334,10 @@ static const struct realtek_ops rtl8365mb_ops = {
+ 	.phy_write = rtl8365mb_phy_write,
+ };
+ 
++static const char *const rtl8365mb_supplies[] = {
++	"avddh", "avddl", "dvddio", "dvddio1", "dvddl", "pllvddl",
++};
++
+ const struct realtek_variant rtl8365mb_variant = {
+ 	.ds_ops = &rtl8365mb_switch_ops,
+ 	.ops = &rtl8365mb_ops,
+@@ -3342,6 +3346,8 @@ const struct realtek_variant rtl8365mb_variant = {
+ 	.cmd_read = 0xb9,
+ 	.cmd_write = 0xb8,
+ 	.chip_data_sz = sizeof(struct rtl8365mb),
++	.supplies = rtl8365mb_supplies,
++	.num_supplies = ARRAY_SIZE(rtl8365mb_supplies),
+ };
+ 
+ static const struct of_device_id rtl8365mb_of_match[] = {
+diff --git a/drivers/net/dsa/realtek/rtl83xx.c b/drivers/net/dsa/realtek/rtl83xx.c
+index a96beea72ef5..d6d243131fd2 100644
+--- a/drivers/net/dsa/realtek/rtl83xx.c
++++ b/drivers/net/dsa/realtek/rtl83xx.c
+@@ -2,6 +2,7 @@
+ 
+ #include <linux/module.h>
+ #include <linux/regmap.h>
++#include <linux/regulator/consumer.h>
+ #include <linux/of_mdio.h>
+ #include <linux/if_bridge.h>
+ #include <linux/etherdevice.h>
+@@ -195,7 +196,16 @@ rtl83xx_probe(struct device *dev,
+ 	priv->leds_disabled = of_property_read_bool(dev->of_node,
+ 						    "realtek,disable-leds");
+ 
+-	/* TODO: if power is software controlled, set up any regulators here */
++	/* Enable the supplies before the reset line is requested and driven,
++	 * so the chip is powered before its pins are driven.
++	 */
++	if (var->num_supplies) {
++		ret = devm_regulator_bulk_get_enable(dev, var->num_supplies,
++						     var->supplies);
++		if (ret)
++			return dev_err_ptr_probe(dev, ret, "failed to enable supplies\n");
++	}
++
+ 	priv->reset_ctl = devm_reset_control_get_optional(dev, NULL);
+ 	if (IS_ERR(priv->reset_ctl))
+ 		return dev_err_cast_probe(dev, priv->reset_ctl,
+@@ -216,6 +226,11 @@ rtl83xx_probe(struct device *dev,
+ 		rtl83xx_reset_deassert(priv);
+ 		msleep(REALTEK_HW_START_DELAY);
+ 		dev_dbg(dev, "deasserted RESET\n");
++	} else if (var->num_supplies) {
++		/* Powered but no reset line: still wait for the chip to boot
++		 * before the first register access.
++		 */
++		msleep(REALTEK_HW_START_DELAY);
+ 	}
+ 
+ 	return priv;
+-- 
+2.55.0
+

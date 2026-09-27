@@ -1,0 +1,123 @@
+From e058ab0c46168d5acb5ce59dbc28b62507b8e426 Mon Sep 17 00:00:00 2001
+From: Linus Walleij <linusw@kernel.org>
+Date: Tue, 30 Jun 2026 13:19:44 +0200
+Subject: [PATCH 3/6] net: dsa: realtek: rtl8366rb: Disable STP learning on all
+ ports in setup
+
+When we loop over all ports in the switch .setup() callback,
+make sure to disable learning on all user ports. This is what
+is normally expected and what the RTL8365MB is doing.
+
+Move the code around to accommodate for the new call.
+
+Reviewed-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+Signed-off-by: Linus Walleij <linusw@kernel.org>
+Link: https://patch.msgid.link/20260630-rtl8366rb-improvements-v2-4-05eb9d6a37f5@kernel.org
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/rtl8366rb.c | 74 ++++++++++++++++-------------
+ 1 file changed, 40 insertions(+), 34 deletions(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8366rb.c b/drivers/net/dsa/realtek/rtl8366rb.c
+index 64215a0d5d6d..155bf0010d5f 100644
+--- a/drivers/net/dsa/realtek/rtl8366rb.c
++++ b/drivers/net/dsa/realtek/rtl8366rb.c
+@@ -820,6 +820,40 @@ static int rtl8366rb_port_remove_isolation(struct realtek_priv *priv, int port,
+ 				  RTL8366RB_PORT_ISO_PORTS(mask), 0);
+ }
+ 
++static void
++rtl8366rb_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
++{
++	struct realtek_priv *priv = ds->priv;
++	u32 val;
++	int i;
++
++	switch (state) {
++	case BR_STATE_DISABLED:
++		val = RTL8366RB_STP_STATE_DISABLED;
++		break;
++	case BR_STATE_BLOCKING:
++	case BR_STATE_LISTENING:
++		val = RTL8366RB_STP_STATE_BLOCKING;
++		break;
++	case BR_STATE_LEARNING:
++		val = RTL8366RB_STP_STATE_LEARNING;
++		break;
++	case BR_STATE_FORWARDING:
++		val = RTL8366RB_STP_STATE_FORWARDING;
++		break;
++	default:
++		dev_err(priv->dev, "unknown bridge state requested\n");
++		return;
++	}
++
++	/* Set the same status for the port on all the FIDs */
++	for (i = 0; i < RTL8366RB_NUM_FIDS; i++) {
++		regmap_update_bits(priv->map, RTL8366RB_STP_STATE_BASE + i,
++				   RTL8366RB_STP_STATE_MASK(port),
++				   RTL8366RB_STP_STATE(port, val));
++	}
++}
++
+ static int rtl8366rb_setup(struct dsa_switch *ds)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+@@ -900,6 +934,12 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
+ 
+ 	/* Start with all ports blocked, including unused ports */
+ 	dsa_switch_for_each_port(dp, ds) {
++		/* Set the initial STP state of all ports to DISABLED, otherwise
++		 * ports will still forward frames to the CPU despite being
++		 * administratively down by default.
++		 */
++		rtl8366rb_port_stp_state_set(ds, dp->index, BR_STATE_DISABLED);
++
+ 		/* Start with all ports completely isolated */
+ 		ret = rtl8366rb_port_set_isolation(priv, dp->index, 0);
+ 		if (ret)
+@@ -1320,40 +1360,6 @@ rtl8366rb_port_bridge_flags(struct dsa_switch *ds, int port,
+ 	return 0;
+ }
+ 
+-static void
+-rtl8366rb_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
+-{
+-	struct realtek_priv *priv = ds->priv;
+-	u32 val;
+-	int i;
+-
+-	switch (state) {
+-	case BR_STATE_DISABLED:
+-		val = RTL8366RB_STP_STATE_DISABLED;
+-		break;
+-	case BR_STATE_BLOCKING:
+-	case BR_STATE_LISTENING:
+-		val = RTL8366RB_STP_STATE_BLOCKING;
+-		break;
+-	case BR_STATE_LEARNING:
+-		val = RTL8366RB_STP_STATE_LEARNING;
+-		break;
+-	case BR_STATE_FORWARDING:
+-		val = RTL8366RB_STP_STATE_FORWARDING;
+-		break;
+-	default:
+-		dev_err(priv->dev, "unknown bridge state requested\n");
+-		return;
+-	}
+-
+-	/* Set the same status for the port on all the FIDs */
+-	for (i = 0; i < RTL8366RB_NUM_FIDS; i++) {
+-		regmap_update_bits(priv->map, RTL8366RB_STP_STATE_BASE + i,
+-				   RTL8366RB_STP_STATE_MASK(port),
+-				   RTL8366RB_STP_STATE(port, val));
+-	}
+-}
+-
+ static void
+ rtl8366rb_port_fast_age(struct dsa_switch *ds, int port)
+ {
+-- 
+2.55.0
+

@@ -1,0 +1,115 @@
+From b269a05961913b81753dc2f9ae87469a6815a534 Mon Sep 17 00:00:00 2001
+From: Linus Walleij <linusw@kernel.org>
+Date: Tue, 30 Jun 2026 13:19:45 +0200
+Subject: [PATCH 4/6] net: dsa: realtek: rtl8366rb: Switch to generic learning
+ enablement
+
+Instead of just writing the learning disablement register in setup
+and a custom handling of BR_LEARNING, implement the generic RTL83xx
+.port_set_learning() callback for setting learning on a port, and
+call this in the per-port loop in .setup().
+
+Instead of the custom rtl83366rb_port_bridge_flags() function for
+setting learning mode on each port, use the RTL83xx generic
+rtl83xx_port_bridge_flags() callback.
+
+Signed-off-by: Linus Walleij <linusw@kernel.org>
+Link: https://patch.msgid.link/20260630-rtl8366rb-improvements-v2-5-05eb9d6a37f5@kernel.org
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/rtl8366rb.c | 43 ++++++++++++-----------------
+ 1 file changed, 17 insertions(+), 26 deletions(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8366rb.c b/drivers/net/dsa/realtek/rtl8366rb.c
+index 155bf0010d5f..d2fa8ff6a5d0 100644
+--- a/drivers/net/dsa/realtek/rtl8366rb.c
++++ b/drivers/net/dsa/realtek/rtl8366rb.c
+@@ -854,6 +854,16 @@ rtl8366rb_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
+ 	}
+ }
+ 
++static int rtl8366rb_port_set_learning(struct realtek_priv *priv, int port,
++				       bool enable)
++{
++	/* Notice inverted semantics in this register: setting a bit disables
++	 * learning instead of enabling it.
++	 */
++	return regmap_update_bits(priv->map, RTL8366RB_PORT_LEARNDIS_CTRL,
++				  BIT(port), enable ? 0 : BIT(port));
++}
++
+ static int rtl8366rb_setup(struct dsa_switch *ds)
+ {
+ 	struct realtek_priv *priv = ds->priv;
+@@ -945,6 +955,11 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
+ 		if (ret)
+ 			return ret;
+ 
++		/* Disable learning */
++		ret = rtl8366rb_port_set_learning(priv, dp->index, false);
++		if (ret)
++			return ret;
++
+ 		/* Collect CPU ports. If we support cascade switches, it should
+ 		 * also include the upstream DSA ports.
+ 		 */
+@@ -1037,12 +1052,6 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
+ 			rb->max_mtu[i] = ETH_DATA_LEN;
+ 	}
+ 
+-	/* Disable learning for all ports */
+-	ret = regmap_write(priv->map, RTL8366RB_PORT_LEARNDIS_CTRL,
+-			   RTL8366RB_PORT_ALL);
+-	if (ret)
+-		return ret;
+-
+ 	/* Enable auto ageing for all ports */
+ 	ret = regmap_write(priv->map, RTL8366RB_SECURITY_CTRL, 0);
+ 	if (ret)
+@@ -1341,25 +1350,6 @@ rtl8366rb_port_pre_bridge_flags(struct dsa_switch *ds, int port,
+ 	return 0;
+ }
+ 
+-static int
+-rtl8366rb_port_bridge_flags(struct dsa_switch *ds, int port,
+-			    struct switchdev_brport_flags flags,
+-			    struct netlink_ext_ack *extack)
+-{
+-	struct realtek_priv *priv = ds->priv;
+-	int ret;
+-
+-	if (flags.mask & BR_LEARNING) {
+-		ret = regmap_update_bits(priv->map, RTL8366RB_PORT_LEARNDIS_CTRL,
+-					 BIT(port),
+-					 (flags.val & BR_LEARNING) ? 0 : BIT(port));
+-		if (ret)
+-			return ret;
+-	}
+-
+-	return 0;
+-}
+-
+ static void
+ rtl8366rb_port_fast_age(struct dsa_switch *ds, int port)
+ {
+@@ -1810,7 +1800,7 @@ static const struct dsa_switch_ops rtl8366rb_switch_ops = {
+ 	.port_enable = rtl8366rb_port_enable,
+ 	.port_disable = rtl8366rb_port_disable,
+ 	.port_pre_bridge_flags = rtl8366rb_port_pre_bridge_flags,
+-	.port_bridge_flags = rtl8366rb_port_bridge_flags,
++	.port_bridge_flags = rtl83xx_port_bridge_flags,
+ 	.port_stp_state_set = rtl8366rb_port_stp_state_set,
+ 	.port_fast_age = rtl8366rb_port_fast_age,
+ 	.port_change_mtu = rtl8366rb_change_mtu,
+@@ -1833,6 +1823,7 @@ static const struct realtek_ops rtl8366rb_ops = {
+ 	.enable_vlan4k	= rtl8366rb_enable_vlan4k,
+ 	.port_add_isolation = rtl8366rb_port_add_isolation,
+ 	.port_remove_isolation = rtl8366rb_port_remove_isolation,
++	.port_set_learning = rtl8366rb_port_set_learning,
+ 	.phy_read	= rtl8366rb_phy_read,
+ 	.phy_write	= rtl8366rb_phy_write,
+ };
+-- 
+2.55.0
+

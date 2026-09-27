@@ -1,0 +1,78 @@
+From e9ba480ec8209550c597ecdc4f22b9c015001d56 Mon Sep 17 00:00:00 2001
+From: Oleksij Rempel <o.rempel@pengutronix.de>
+Date: Fri, 18 Sep 2026 11:17:21 +0200
+Subject: [PATCH 04/17] net: dsa: realtek: rtl8365mb: extract PHY OCP address
+ halves with FIELD_GET
+
+Extract the two OCP address halves with FIELD_GET() before handing them
+to FIELD_PREP() to build the ADDRESS register value.
+
+rtl8365mb_phy_ocp_prepare() previously fed FIELD_PREP() the raw
+ocp_addr >> 1 and >> 6. FIELD_PREP() masks the value to the field at run
+time, so that was correct for the current callers, which all pass a
+run-time register address.
+
+FIELD_PREP()'s compile-time width check only fires for a compile-time
+constant value. None reached it here: the address is computed as
+PHYREG_BASE + regnum * 2 from a run-time regnum. The EEE support that
+follows adds callers with constant OCP addresses (0xa5c4 etc.); clang
+folds those into the inlined ocp_prepare(), so the shifted constant now
+reaches the check, overflows the 5-/4-bit field and breaks the build
+(gcc does not fold it here). FIELD_GET() narrows each half to the field
+width first, so the value already fits.
+
+No functional change.
+
+Signed-off-by: Oleksij Rempel <o.rempel@pengutronix.de>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Linus Walleij <linusw@kernel.org>
+Link: https://patch.msgid.link/20260918091722.3270534-3-o.rempel@pengutronix.de
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/rtl8365mb_main.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8365mb_main.c b/drivers/net/dsa/realtek/rtl8365mb_main.c
+index f8220d832e46..efde1f3b604e 100644
+--- a/drivers/net/dsa/realtek/rtl8365mb_main.c
++++ b/drivers/net/dsa/realtek/rtl8365mb_main.c
+@@ -199,6 +199,14 @@
+ #define   RTL8365MB_GPHY_OCP_MSB_0_CFG_CPU_OCPADR_MASK	0x0FC0
+ #define RTL8365MB_PHY_OCP_ADDR_PREFIX_MASK		0xFC00
+ 
++/* The full 16-bit OCP address is split across two registers: bits [15:10] are
++ * the prefix (RTL8365MB_PHY_OCP_ADDR_PREFIX_MASK above), and bits [9:1] go into
++ * the ADDRESS register as two fields, [5:1] and [9:6]. Bit 0 is always 0 - PHY
++ * OCP registers are 2-byte aligned.
++ */
++#define RTL8365MB_PHY_OCP_ADDR_5_1_MASK			GENMASK(5, 1)
++#define RTL8365MB_PHY_OCP_ADDR_9_6_MASK			GENMASK(9, 6)
++
+ /* The PHY OCP addresses of PHY registers 0~31 start here */
+ #define RTL8365MB_PHY_OCP_ADDR_PHYREG_BASE		0xA400
+ 
+@@ -871,6 +879,8 @@ static int rtl8365mb_phy_poll_busy(struct realtek_priv *priv)
+ static int rtl8365mb_phy_ocp_prepare(struct realtek_priv *priv, int phy,
+ 				     u32 ocp_addr)
+ {
++	u16 ocp_addr_lo = FIELD_GET(RTL8365MB_PHY_OCP_ADDR_5_1_MASK, ocp_addr);
++	u16 ocp_addr_hi = FIELD_GET(RTL8365MB_PHY_OCP_ADDR_9_6_MASK, ocp_addr);
+ 	u32 val;
+ 	int ret;
+ 
+@@ -887,9 +897,9 @@ static int rtl8365mb_phy_ocp_prepare(struct realtek_priv *priv, int phy,
+ 	val = RTL8365MB_PHY_BASE;
+ 	val |= FIELD_PREP(RTL8365MB_INDIRECT_ACCESS_ADDRESS_PHYNUM_MASK, phy);
+ 	val |= FIELD_PREP(RTL8365MB_INDIRECT_ACCESS_ADDRESS_OCPADR_5_1_MASK,
+-			  ocp_addr >> 1);
++			  ocp_addr_lo);
+ 	val |= FIELD_PREP(RTL8365MB_INDIRECT_ACCESS_ADDRESS_OCPADR_9_6_MASK,
+-			  ocp_addr >> 6);
++			  ocp_addr_hi);
+ 	ret = regmap_write(priv->map_nolock,
+ 			   RTL8365MB_INDIRECT_ACCESS_ADDRESS_REG, val);
+ 	if (ret)
+-- 
+2.55.0
+

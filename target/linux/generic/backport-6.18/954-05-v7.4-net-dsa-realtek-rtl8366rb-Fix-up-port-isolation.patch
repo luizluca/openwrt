@@ -1,0 +1,56 @@
+From 6d356e408670e2c0919e32b2958d1947fdf104f2 Mon Sep 17 00:00:00 2001
+From: Linus Walleij <linusw@kernel.org>
+Date: Fri, 31 Jul 2026 23:06:06 +0200
+Subject: [PATCH 5/6] net: dsa: realtek: rtl8366rb: Fix up port isolation
+
+Sashiko reports that we incorrectly disable isolation in the setup
+loop while what we want to do is to enable it.
+
+Enable it by unconditionally setting the enable bit 0 in
+rtl8366rb_port_set_isolation() so a mask of 0 when passed in
+will enable isolation and isolate from ALL ports.
+
+Fix up the comments so it is clear what is going on, including a
+missing word in the helper function.
+
+Reported-by: Paolo Abeni <pabeni@redhat.com>
+Closes: https://sashiko.dev/#/patchset/20260630-rtl8366rb-improvements-v2-0-05eb9d6a37f5%40kernel.org
+Signed-off-by: Linus Walleij <linusw@kernel.org>
+Link: https://patch.msgid.link/20260731-rtl8366rb-fixes-v4-1-fbf0c95b829a@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Luiz Angelo Daros de Luca <luizluca@gmail.com>
+---
+ drivers/net/dsa/realtek/rtl8366rb.c | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/dsa/realtek/rtl8366rb.c b/drivers/net/dsa/realtek/rtl8366rb.c
+index d2fa8ff6a5d0..f11831b66de8 100644
+--- a/drivers/net/dsa/realtek/rtl8366rb.c
++++ b/drivers/net/dsa/realtek/rtl8366rb.c
+@@ -794,11 +794,10 @@ static int rtl8366rb_setup_all_leds_off(struct realtek_priv *priv)
+ static int rtl8366rb_port_set_isolation(struct realtek_priv *priv, int port,
+ 					u32 mask)
+ {
+-	/* Bit 0 enables isolation so set this if we enable isolation
+-	 * any of the ports an clear it if we disable on all of them.
++	/* Bit 0 enables isolation, the mask indicates allowed forwarding
++	 * ports
+ 	 */
+-	if (mask)
+-		mask = RTL8366RB_PORT_ISO_PORTS(mask) | RTL8366RB_PORT_ISO_EN;
++	mask = RTL8366RB_PORT_ISO_PORTS(mask) | RTL8366RB_PORT_ISO_EN;
+ 
+ 	return regmap_write(priv->map, RTL8366RB_PORT_ISO(port),
+ 			    mask);
+@@ -974,7 +973,7 @@ static int rtl8366rb_setup(struct dsa_switch *ds)
+ 		if (!dsa_port_is_user(dp))
+ 			continue;
+ 
+-		/* Forward only to the CPU */
++		/* Forward only to the CPU(s), isolate from all other ports */
+ 		ret = rtl8366rb_port_set_isolation(priv, dp->index, upports_mask);
+ 		if (ret)
+ 			return ret;
+-- 
+2.55.0
+
