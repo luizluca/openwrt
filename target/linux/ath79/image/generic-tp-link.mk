@@ -609,8 +609,8 @@ define Device/tplink_tl-wdr3600-v1
   SOC := ar9344
   DEVICE_MODEL := TL-WDR3600
   DEVICE_VARIANT := v1
-  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-dsa-qca8k \
-	-kmod-switch-ar8xxx -swconfig -kmod-swconfig
+  DEVICE_PACKAGES := kmod-usb2 kmod-usb-ledtrig-usbport kmod-dsa-qca8k kmod-ag71xx \
+	-kmod-switch-ar8xxx -swconfig -kmod-swconfig -kmod-ag71xx-legacy
   TPLINK_HWID := 0x36000001
   SUPPORTED_DEVICES += tl-wdr4300
   DEVICE_COMPAT_VERSION := 1.1

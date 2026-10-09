@@ -1,0 +1,11 @@
+. /lib/functions.sh
+
+board=$(board_name)
+
+case "$board" in
+tplink,tl-wdr3600-v1|\
+tplink,tl-wdr4300-v1)
+	devmem 0x1805002c 32 0x06000000
+	exit 9
+	;;
+esac
